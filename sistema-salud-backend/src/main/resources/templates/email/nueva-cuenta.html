@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bienvenido a SistemaSalud</title>
+</head>
+<body style="margin:0;padding:0;background-color:#FBF6EF;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+            <td align="center" style="padding:40px 16px;">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF;border-radius:10px;overflow:hidden;">
+                    <tr>
+                        <td style="background-color:#1B1B2A;padding:32px;text-align:center;">
+                            <h1 style="font-family:'DM Serif Display',Georgia,serif;color:#FBF6EF;margin:0;font-size:24px;">
+                                Sistema<span style="color:#D38A4C;">Salud</span>
+                            </h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px;">
+                            <h2 style="color:#1B1B2A;margin:0 0 16px;">Bienvenido, <span th:text="${nombre}">Usuario</span></h2>
+                            <p style="color:#7C6F64;line-height:1.6;margin:0 0 16px;">
+                                Tu cuenta ha sido creada exitosamente en <strong>SistemaSalud</strong>.
+                            </p>
+                            <p style="color:#7C6F64;line-height:1.6;margin:0 0 16px;">
+                                Ya podes acceder a la plataforma usando tu correo electronico y la contraseña que elegiste.
+                            </p>
+                            <table cellpadding="0" cellspacing="0" align="center">
+                                <tr>
+                                    <td align="center" style="padding:16px 0;">
+                                        <a th:href="${urlIngreso}" style="background-color:#D38A4C;color:#1B1B2A;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:500;display:inline-block;">
+                                            Ingresar a SistemaSalud
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            <p style="color:#7C6F64;font-size:13px;line-height:1.5;margin:16px 0 0;">
+                                Si no solicitaste esta cuenta, podes ignorar este mensaje.
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#F5EDE0;padding:16px 32px;text-align:center;">
+                            <p style="color:#7C6F64;font-size:12px;margin:0;">
+                                &copy; 2026 SistemaSalud &mdash; Todos los derechos reservados.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

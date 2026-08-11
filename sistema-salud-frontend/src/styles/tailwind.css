@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .card-seccion,
+  .card-blanca,
+  .card-registro,
+  .card-perfil,
+  .card-plan,
+  .card-consulta,
+  .card-pastel {
+    @apply bg-white border border-slate-200 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.05)];
+  }
+}
