@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Users, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Phone, Shield, Calendar } from 'lucide-react';
+import { AlertTriangle, Users, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { esMismoDia, formatearFechaHora } from '../../utils/fechas';
@@ -13,13 +13,29 @@ const PRIORIDAD_CLS = {
 };
 
 const ESTADO_LABEL = {
-  CREADA: 'Sin Atender',
+  CREADA: 'Pendiente',
   REVISADA: 'Revisada',
-  ASIGNADA: 'En Proceso',
-  EN_PROCESO: 'En Proceso',
   DERIVADA: 'Derivado',
+  ASIGNADA: 'Turno Asignado',
+  EN_PROCESO: 'En Proceso',
   COMPLETADA: 'Completada',
 };
+
+const ESTADO_BADGE = {
+  CREADA: 'bg-slate-100 text-slate-600',
+  REVISADA: 'bg-amber-100 text-amber-700',
+  DERIVADA: 'bg-violet-100 text-violet-700',
+  ASIGNADA: 'bg-emerald-100 text-emerald-700',
+  EN_PROCESO: 'bg-blue-100 text-blue-700',
+  COMPLETADA: 'bg-slate-100 text-slate-500',
+};
+
+const FILTROS = [
+  { label: 'Todas', value: 'todas' },
+  { label: 'Por Derivar', value: 'por-derivar' },
+  { label: 'Derivadas', value: 'derivadas' },
+  { label: 'Con Turno', value: 'con-turno' },
+];
 
 export default function DashboardSecretaria() {
   const { user } = useAuth();
@@ -40,22 +56,29 @@ export default function DashboardSecretaria() {
     (est(s) === 'CREADA' || est(s) === 'REVISADA')
   );
 
-  const pendientes = todas.filter(s =>
-    (est(s) === 'CREADA' || est(s) === 'REVISADA' || est(s) === 'EN_PROCESO') &&
-    !s.idCentroSalud && !s.fechaTurno
+  const porDerivar = todas.filter(s =>
+    est(s) === 'CREADA' || est(s) === 'REVISADA'
   );
 
-  const hoy = new Date();
-  const esHoy = fecha => esMismoDia(fecha, hoy);
-  const hoyDerivadas = todas.filter(s =>
-    (est(s) === 'DERIVADA' || est(s) === 'ASIGNADA' || est(s) === 'COMPLETADA') &&
-    esHoy(s.fechaActualizacion)
-  ).length;
+  const derivadas = todas.filter(s =>
+    est(s) === 'DERIVADA' || (est(s) === 'ASIGNADA' && s.idCentroSalud && !s.fechaTurno)
+  );
+
+  const conTurno = todas.filter(s =>
+    est(s) === 'ASIGNADA' || est(s) === 'EN_PROCESO' || est(s) === 'COMPLETADA'
+  );
+
+  const completadas = todas.filter(s => est(s) === 'COMPLETADA');
 
   const pacientesUnicos = new Set(todas.map(s => s.idPaciente).filter(Boolean)).size;
   const tieneUrgentes = urgentes.length > 0;
 
-  const filtradas = filtro === 'urgentes' ? urgentes : filtro === 'pendientes' ? pendientes : todas;
+  const filtroSel = FILTROS.find(f => f.value === filtro);
+  const filtradas =
+    filtro === 'por-derivar' ? porDerivar :
+    filtro === 'derivadas' ? derivadas :
+    filtro === 'con-turno' ? conTurno :
+    todas;
 
   return (
     <div className="min-h-screen font-sans">
@@ -79,32 +102,32 @@ export default function DashboardSecretaria() {
             label="Casos Urgentes"
             value={urgentes.length}
             accent={tieneUrgentes ? 'red' : 'slate'}
-            trend={tieneUrgentes ? `Requieren triaje` : 'Sin novedades'}
+            trend={tieneUrgentes ? `Requieren derivación` : 'Sin novedades'}
             trendUp={tieneUrgentes}
           />
           <KpiCard
-            icon={Users}
-            label="Pendientes de Asignación"
-            value={pendientes.length}
+            icon={Inbox}
+            label="Por Derivar"
+            value={porDerivar.length}
             accent="slate"
-            trend={pendientes.length > 0 ? 'Esperando gestión' : 'Al día'}
+            trend={porDerivar.length > 0 ? 'Esperando gestión' : 'Al día'}
             trendUp={false}
           />
           <KpiCard
-            icon={CheckCircle}
-            label="Derivaciones Completadas Hoy"
-            value={hoyDerivadas}
-            accent={hoyDerivadas > 0 ? 'emerald' : 'slate'}
-            trend={hoyDerivadas > 0 ? 'Gestionadas' : 'Sin movimientos'}
-            trendUp={hoyDerivadas > 0}
+            icon={Building2}
+            label="Derivadas a Centro"
+            value={derivadas.length}
+            accent={derivadas.length > 0 ? 'violet' : 'slate'}
+            trend={derivadas.length > 0 ? 'Con centro asignado' : 'Sin movimientos'}
+            trendUp={derivadas.length > 0}
           />
           <KpiCard
-            icon={Building2}
-            label="Total Pacientes Registrados"
-            value={pacientesUnicos}
-            accent="slate"
-            trend="En el sistema"
-            trendUp={null}
+            icon={CheckCircle}
+            label="Con Turno Asignado"
+            value={conTurno.length}
+            accent={conTurno.length > 0 ? 'emerald' : 'slate'}
+            trend={conTurno.length > 0 ? 'Gestionadas' : 'Sin turnos'}
+            trendUp={conTurno.length > 0}
           />
         </div>
 
@@ -115,7 +138,7 @@ export default function DashboardSecretaria() {
           <div className="lg:col-span-8 bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-blue-600" />
+                <Inbox className="w-4 h-4 text-blue-600" />
                 Bandeja Operativa de Solicitudes
               </h3>
               <span className="text-xs text-slate-400 font-medium">{filtradas.length} solicitudes</span>
@@ -123,14 +146,14 @@ export default function DashboardSecretaria() {
 
             {/* Filtros rápidos */}
             <div className="flex gap-2 px-5 py-3 border-b border-slate-100 bg-slate-50/50">
-              {(['todas', 'urgentes', 'pendientes']).map(k => (
-                <button key={k} onClick={() => setFiltro(k)}
+              {FILTROS.map(k => (
+                <button key={k.value} onClick={() => setFiltro(k.value)}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
-                    filtro === k
+                    filtro === k.value
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                   }`}>
-                  {k === 'todas' ? 'Todas' : k === 'urgentes' ? `Solo Urgentes (${urgentes.length})` : `Pendientes (${pendientes.length})`}
+                  {k.label}
                 </button>
               ))}
             </div>
@@ -148,7 +171,7 @@ export default function DashboardSecretaria() {
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Fecha / Hora</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Paciente</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Categoría / Motivo</th>
-                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Urgencia</th>
+                      <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden xl:table-cell">Asignación</th>
                       <th className="text-left px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Estado</th>
                       <th className="text-right px-4 py-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Acción</th>
                     </tr>
@@ -166,27 +189,27 @@ export default function DashboardSecretaria() {
           {/* Columna derecha — Sidebar Operativa */}
           <div className="lg:col-span-4 space-y-4">
 
-            {/* Centro de Derivación Rápida */}
+            {/* Accesos directos */}
             <div className="bg-white border border-slate-200 rounded-xl p-5">
               <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-blue-600" />
-                Centro de Derivación Rápida
+                <CalendarDays className="w-4 h-4 text-blue-600" />
+                Gestión de Derivaciones
               </h3>
               <div className="space-y-2.5">
                 <Link to="/secretaria/solicitudes"
                   className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                    <Building2 className="w-4 h-4 text-blue-600" />
+                    <Inbox className="w-4 h-4 text-blue-600" />
                   </div>
-                  <span className="flex-1">Buscar Centros de Salud</span>
+                  <span className="flex-1">Bandeja de Solicitudes</span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
-                <Link to="/secretaria/solicitudes"
+                <Link to="/secretaria/agenda"
                   className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all">
                   <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                    <Users className="w-4 h-4 text-emerald-600" />
+                    <Calendar className="w-4 h-4 text-emerald-600" />
                   </div>
-                  <span className="flex-1">Crear Nueva Solicitud</span>
+                  <span className="flex-1">Agenda de Turnos</span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
               </div>
@@ -195,49 +218,29 @@ export default function DashboardSecretaria() {
             {/* Estado del Sistema */}
             <div className="bg-white border border-slate-200 rounded-xl p-5">
               <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-blue-600" />
-                Agenda / Estado del Sistema
+                <Building2 className="w-4 h-4 text-blue-600" />
+                Estado del Flujo
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Profesionales disponibles</span>
-                  <span className="font-semibold text-emerald-600">—</span>
+                  <span className="text-slate-500">Solicitudes derivadas</span>
+                  <span className="font-semibold text-violet-600">{derivadas.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Centros activos</span>
-                  <span className="font-semibold text-emerald-600">—</span>
+                  <span className="text-slate-500">Turnos asignados</span>
+                  <span className="font-semibold text-emerald-600">{conTurno.length}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">Turnos asignados hoy</span>
-                  <span className="font-semibold text-slate-700">{todas.filter(s => s.fechaTurno).length}</span>
+                  <span className="text-slate-500">Atendidas / Completadas</span>
+                  <span className="font-semibold text-slate-700">{completadas.length}</span>
                 </div>
                 <div className="mt-3 pt-3 border-t border-slate-100">
-                  <Link to="/secretaria/solicitudes"
+                  <Link to="/secretaria/agenda"
                     className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1">
                     Ver agenda completa
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                 </div>
-              </div>
-            </div>
-
-            {/* SOS / Protocolos de Crisis */}
-            <div className="bg-white border border-red-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Shield className="w-4 h-4 text-red-500" />
-                Acceso Directo a Crisis
-              </h3>
-              <div className="space-y-2.5">
-                <button className="w-full flex items-center gap-3 rounded-lg border border-red-200 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-50 transition-all text-left">
-                  <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
-                    <Phone className="w-4 h-4 text-red-600" />
-                  </div>
-                  Activar Protocolo de Crisis
-                </button>
-                <p className="text-[11px] text-slate-400 leading-relaxed px-1">
-                  Línea de emergencia: <strong className="text-slate-600">(011) 5050-0147</strong> | 
-                  Activación inmediata de equipos de intervención.
-                </p>
               </div>
             </div>
 
@@ -249,8 +252,8 @@ export default function DashboardSecretaria() {
 }
 
 function KpiCard({ icon: Icon, label, value, accent, trend, trendUp }) {
-  const borderColor = accent === 'red' ? 'border-red-200' : accent === 'emerald' ? 'border-emerald-200' : 'border-slate-200';
-  const iconBg = accent === 'red' ? 'bg-red-100 text-red-600' : accent === 'emerald' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-600';
+  const borderColor = accent === 'red' ? 'border-red-200' : accent === 'emerald' ? 'border-emerald-200' : accent === 'violet' ? 'border-violet-200' : 'border-slate-200';
+  const iconBg = accent === 'red' ? 'bg-red-100 text-red-600' : accent === 'emerald' ? 'bg-emerald-100 text-emerald-600' : accent === 'violet' ? 'bg-violet-100 text-violet-600' : 'bg-slate-100 text-slate-600';
   return (
     <div className={`bg-white border ${borderColor} rounded-xl p-4 shadow-sm`}>
       <div className="flex items-center justify-between mb-3">
@@ -275,9 +278,15 @@ function SolicitudRow({ solicitud: s }) {
   const pCls = PRIORIDAD_CLS[s.prioridad] || PRIORIDAD_CLS.MEDIA;
   const pLabel = s.prioridad || '—';
   const estadoLabel = ESTADO_LABEL[s.estado] || s.estado || '—';
+  const estadoBadge = ESTADO_BADGE[s.estado] || 'bg-slate-100 text-slate-600';
   const fecha = s.fechaCreacion ? formatearFechaHora(s.fechaCreacion, {
     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
   }) : '—';
+
+  const asignacion = [];
+  if (s.nombreCentroSalud) asignacion.push(s.nombreCentroSalud);
+  if (s.nombreProfesional) asignacion.push(s.nombreProfesional);
+  if (s.fechaTurno) asignacion.push(formatearFechaHora(s.fechaTurno, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }));
 
   const rowBorder = s.prioridad === 'URGENTE' ? 'border-l-2 border-l-red-500' : '';
 
@@ -292,21 +301,27 @@ function SolicitudRow({ solicitud: s }) {
         <div className="text-sm text-slate-700">{s.nombreCategoria || '—'}</div>
         <div className="text-[11px] text-slate-400 line-clamp-1">{s.titulo}</div>
       </td>
-      <td className="px-4 py-3.5 hidden sm:table-cell">
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pCls}`}>{pLabel}</span>
+      <td className="px-4 py-3.5 hidden xl:table-cell">
+        {asignacion.length === 0 ? (
+          <span className="text-[11px] text-slate-400">Sin asignar</span>
+        ) : (
+          <div className="text-xs text-slate-600 space-y-0.5">
+            {asignacion.map((a, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <ChevronRight className="w-3 h-3 text-slate-300 shrink-0" />
+                {a}
+              </div>
+            ))}
+          </div>
+        )}
       </td>
       <td className="px-4 py-3.5 hidden sm:table-cell">
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-          s.estado === 'CREADA' ? 'bg-slate-100 text-slate-600' :
-          s.estado === 'DERIVADA' ? 'bg-violet-100 text-violet-700' :
-          s.estado === 'ASIGNADA' || s.estado === 'EN_PROCESO' ? 'bg-emerald-100 text-emerald-700' :
-          'bg-amber-100 text-amber-700'
-        }`}>{estadoLabel}</span>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${estadoBadge}`}>{estadoLabel}</span>
       </td>
       <td className="px-4 py-3.5 text-right whitespace-nowrap">
         <Link to={`/secretaria/solicitudes/${s.id}`}
           className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors">
-          Gestionar
+          Gestión
           <ChevronRight className="w-3 h-3" />
         </Link>
       </td>

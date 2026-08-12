@@ -7,12 +7,13 @@ import java.time.LocalDateTime;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 @Entity @Table(name = "notificacion")
-@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "usuario", "solicitud"})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "usuario", "solicitud", "post"})
 public class Notificacion {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_notificacion") private Long id;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "id_usuario", nullable = false) private Usuario usuario;
     @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "id_solicitud") private Solicitud solicitud;
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "id_post") private Post post;
     @Column(nullable = false, length = 200) private String titulo;
     @Column(columnDefinition = "TEXT", nullable = false) private String mensaje;
     @Column(nullable = false) private Boolean leida = false;

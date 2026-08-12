@@ -29,6 +29,7 @@ public class ForoService {
     private final PostRepository postRepository;
     private final ComentarioRepository comentarioRepository;
     private final PacienteRepository pacienteRepository;
+    private final NotificacionService notificacionService;
 
     @Transactional(readOnly = true)
     public PaginatedResponse<PostResponseDTO> listar(String categoria, int page, int size) {
@@ -97,7 +98,9 @@ public class ForoService {
                 .post(post)
                 .usuario(paciente)
                 .build();
-        return toComentarioResponse(comentarioRepository.save(comentario));
+        Comentario guardado = comentarioRepository.save(comentario);
+        notificacionService.notificarRespuestaForo(post, paciente, dto.getContenido().trim(), Boolean.TRUE.equals(dto.getEsAnonimo()));
+        return toComentarioResponse(guardado);
     }
 
     private PostResponseDTO toPostResponse(Post post) {

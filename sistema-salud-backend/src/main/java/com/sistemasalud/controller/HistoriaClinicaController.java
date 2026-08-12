@@ -1,6 +1,7 @@
 package com.sistemasalud.controller;
 
 import com.sistemasalud.dto.request.HistoriaClinicaRequest;
+import com.sistemasalud.dto.response.HistoriaClinicaResponse;
 import com.sistemasalud.entity.HistoriaClinica;
 import com.sistemasalud.security.UserPrincipal;
 import com.sistemasalud.service.HistoriaClinicaService;
@@ -45,6 +46,11 @@ public class HistoriaClinicaController {
     @GetMapping("/solicitud/{id}") @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")
     public ResponseEntity<List<HistoriaClinica>> historialSolicitud(@PathVariable Long id) {
         return ResponseEntity.ok(service.obtenerHistorialSolicitud(id));
+    }
+
+    @GetMapping("/mia") @PreAuthorize("hasRole('PACIENTE')")
+    public ResponseEntity<List<HistoriaClinicaResponse>> miHistorial(@AuthenticationPrincipal UserPrincipal u) {
+        return ResponseEntity.ok(service.obtenerHistorialPropio(u.getId()));
     }
 
     @DeleteMapping("/{id}") @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')")

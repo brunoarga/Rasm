@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Building2, User, Search, Send, Loader2, MapPin } from 'lucide-react';
+import { ArrowLeft, Building2, User, Search, Send, Loader2, MapPin, CalendarClock } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 
@@ -12,7 +12,7 @@ export default function DerivarPaciente() {
   const [centros, setCentros] = useState([]);
   const [oss, setOss] = useState([]);
   const [buscando, setBuscando] = useState(false);
-  const [f, setF] = useState({ tipoDerivacion: 'profesional', idProfesional: '', idCentroSalud: '', tipoPractica: 'CONSULTA_AMBULATORIA', motivoDerivacion: '', notas: '', lat: -34.6, lon: -58.4, radio: 50, idObraSocial: '' });
+  const [f, setF] = useState({ tipoDerivacion: 'profesional', idProfesional: '', idCentroSalud: '', tipoPractica: 'CONSULTA_AMBULATORIA', motivoDerivacion: '', notas: '', lat: -34.6, lon: -58.4, radio: 50, idObraSocial: '', fechaHora: '', duracion: 30, modalidad: 'PRESENCIAL' });
 
   useEffect(() => {
     api.get(`/solicitudes/${idSolicitud}`).then(r => setSol(r.data)).catch(() => {});
@@ -34,10 +34,11 @@ export default function DerivarPaciente() {
 
   const handleDerivar = async () => {
     try {
-      await api.put(`/solicitudes/${idSolicitud}/derivar`, { idProfesional: f.idProfesional ? parseInt(f.idProfesional) : null, idCentroSalud: f.idCentroSalud ? parseInt(f.idCentroSalud) : null, tipoPractica: f.tipoPractica, motivoDerivacion: f.motivoDerivacion, notas: f.notas });
+      const fechaHora = f.fechaHora ? (f.fechaHora.length === 16 ? `${f.fechaHora}:00` : f.fechaHora) : null;
+      await api.put(`/solicitudes/${idSolicitud}/derivar`, { idProfesional: f.idProfesional ? parseInt(f.idProfesional) : null, idCentroSalud: f.idCentroSalud ? parseInt(f.idCentroSalud) : null, tipoPractica: f.tipoPractica, motivoDerivacion: f.motivoDerivacion, notas: f.notas, fechaHora, duracion: fechaHora ? f.duracion : null, modalidad: fechaHora ? f.modalidad : null });
       toast.success('Derivación exitosa');
       navigate(`/profesional/solicitudes/${idSolicitud}`);
-    } catch (err) { toast.error('Error al derivar'); }
+    } catch (err) { toast.error(err.response?.data?.mensaje || 'Error al derivar'); }
   };
 
   return (
@@ -92,6 +93,39 @@ export default function DerivarPaciente() {
                       <option key={p.id} value={p.id}>{p.usuario?.nombreCompleto} - {p.usuario?.tipoProfesional}</option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {f.tipoDerivacion === 'profesional' && (
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-semibold mb-1.5" style={{ color: '#5B5F66' }}>
+                    <CalendarClock className="w-3.5 h-3.5" style={{ color: '#3A7D5C' }} /> Turno para el paciente (opcional)
+                  </label>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#5B5F66' }}>Fecha y hora</label>
+                      <input type="datetime-local" className="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: '#E8E4DF', color: '#1E293B' }}
+                        value={f.fechaHora} onChange={e => setF({ ...f, fechaHora: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#5B5F66' }}>Duración</label>
+                      <select className="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: '#E8E4DF', color: '#1E293B' }}
+                        value={f.duracion} onChange={e => setF({ ...f, duracion: Number(e.target.value) })}>
+                        <option value={15}>15 min</option>
+                        <option value={30}>30 min</option>
+                        <option value={45}>45 min</option>
+                        <option value={60}>60 min</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold mb-1.5 block" style={{ color: '#5B5F66' }}>Modalidad</label>
+                      <select className="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: '#E8E4DF', color: '#1E293B' }}
+                        value={f.modalidad} onChange={e => setF({ ...f, modalidad: e.target.value })}>
+                        <option value="PRESENCIAL">Presencial</option>
+                        <option value="VIRTUAL">Virtual</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
 

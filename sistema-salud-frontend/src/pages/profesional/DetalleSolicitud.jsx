@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, ChevronRight,
-  FileText, Stethoscope, Pill, Send, Trash2, User, Building2, MapPin, ClipboardList
+  FileText, Stethoscope, Pill, Send, Trash2, User, Building2, MapPin, ClipboardList, MessageSquare
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
@@ -292,6 +292,14 @@ export default function DetalleSolicitud() {
                 </h3>
               </div>
               <div className="p-5 space-y-2.5">
+                {sol.idProfesional && (
+                  <Link to={`/mensajes?solicitud=${id}`}
+                    className="flex items-center justify-center gap-1.5 w-full rounded-xl px-4 py-2.5 text-xs font-semibold transition-colors"
+                    style={{ backgroundColor: '#FEF0EE', color: '#C44536' }}>
+                    <MessageSquare className="w-3.5 h-3.5" /> Enviar mensaje
+                  </Link>
+                )}
+
                 {esPreAsignacion && (
                   <>
                     {sol.estado === 'CREADA' && (

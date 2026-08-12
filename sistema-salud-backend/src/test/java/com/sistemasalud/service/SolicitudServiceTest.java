@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -40,6 +41,7 @@ class SolicitudServiceTest {
     @Mock private DiarioSintomasRepository diarioSintomasRepository;
     @Mock private RegistroSintomatologiaRepository registroSintomatologiaRepository;
     @Mock private NotificacionService notificacionService;
+    @Mock private MensajeService mensajeService;
 
     private SolicitudService service;
     private Usuario usuarioPaciente;
@@ -51,7 +53,7 @@ class SolicitudServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService);
+        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService);
 
         usuarioPaciente = Usuario.builder().id(1L).nombreCompleto("Juan Perez").email("juan@test.com").tipoUsuario(TipoUsuario.PACIENTE).build();
         usuarioProfesional = Usuario.builder().id(2L).nombreCompleto("Dra. Garcia").email("garcia@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build();
@@ -318,6 +320,54 @@ class SolicitudServiceTest {
         assertThat(msgCaptor.getAllValues()).anyMatch(m -> m.contains("Dr. Otro"));
         assertThat(msgCaptor.getAllValues()).anyMatch(m -> m.contains("Juan Perez"));
         assertThat(usuarioCaptor.getAllValues()).contains(usuarioPaciente);
+    }
+
+    @Test
+    void derivarSolicitud_conTurno_deberiaCrearCitaYAgendarSolicitud() {
+        solicitud.setProfesional(profesional);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(profesionalRepository.findById(2L)).thenReturn(Optional.of(Profesional.builder().id(2L).usuario(Usuario.builder().id(3L).nombreCompleto("Dr. Otro").email("otro@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build()).build()));
+        when(citaRepository.findByProfesionalIdAndFechaHoraBetween(any(), any(), any())).thenReturn(List.of());
+        when(citaRepository.save(any(Cita.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        LocalDateTime fechaHora = LocalDateTime.of(2026, 8, 14, 10, 0);
+        Solicitud derivada = Solicitud.builder().id(1L).paciente(paciente).profesional(profesional).categoria(categoria).titulo("Test").descripcion("Test").estado(EstadoSolicitud.DERIVADA).prioridad(Prioridad.MEDIA).fechaTurno(fechaHora).duracionTurno(45).modalidad("PRESENCIAL").fechaCreacion(LocalDateTime.now()).fechaActualizacion(LocalDateTime.now()).activa(true).build();
+        when(solicitudRepository.save(any(Solicitud.class))).thenReturn(derivada);
+
+        DerivacionRequest request = new DerivacionRequest();
+        request.setIdProfesional(2L);
+        request.setFechaHora(fechaHora);
+        request.setDuracion(45);
+        request.setModalidad("PRESENCIAL");
+
+        SolicitudResponse response = service.derivarSolicitud(1L, request);
+
+        assertThat(response.getEstado()).isEqualTo("DERIVADA");
+        assertThat(response.getFechaTurno()).isEqualTo(fechaHora);
+        assertThat(response.getDuracionTurno()).isEqualTo(45);
+        assertThat(response.getModalidad()).isEqualTo("PRESENCIAL");
+        verify(citaRepository).save(any(Cita.class));
+        verify(notificacionService, times(2)).crearNotificacion(any(Usuario.class), anyString(),
+                argThat(m -> m.contains("con turno para el 2026-08-14")), any(Solicitud.class));
+    }
+
+    @Test
+    void listarTodasParaProfesional_deberiaIncluirSolicitudesAtendidasLuegoDeDerivar() {
+        when(profesionalRepository.findByUsuarioId(2L)).thenReturn(Optional.of(profesional));
+        when(solicitudRepository.findByProfesionalIdOrderByFechaCreacionDesc(1L)).thenReturn(List.of());
+        when(solicitudRepository.findByEstadoInAndActivaTrueOrderByFechaCreacionDesc(any())).thenReturn(List.of());
+
+        Cita atendida = Cita.builder()
+                .id(10L).solicitud(solicitud).profesional(profesional)
+                .fechaHora(LocalDateTime.of(2026, 8, 10, 9, 0))
+                .duracion(30).estado("ATENDIDA").build();
+        when(citaRepository.findByProfesionalIdAndEstadoOrderByFechaHoraDesc(1L, "ATENDIDA")).thenReturn(List.of(atendida));
+
+        List<SolicitudResponse> result = service.listarTodasParaProfesional(2L);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(1L);
+        assertThat(result.get(0).getTitulo()).isEqualTo("Necesito ayuda");
     }
 
     @Test

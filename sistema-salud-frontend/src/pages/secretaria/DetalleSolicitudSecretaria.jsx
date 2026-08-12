@@ -51,6 +51,12 @@ export default function DetalleSolicitudSecretaria() {
     api.get(`/solicitudes/${id}`).then(async r => {
       setSol(r.data);
       if (r.data.idCentroSalud) setCentroSel(r.data.idCentroSalud);
+      if (r.data.fechaTurno) { setStep('asignado'); return; }
+      if (r.data.idCentroSalud) {
+        await fetchProfesionales(r.data.idCentroSalud);
+        setStep('profesional');
+        return;
+      }
       const disponibles = await handleBuscarCentros();
       if (disponibles.length > 0) setStep('info');
     }).catch(() => {});
@@ -429,6 +435,22 @@ export default function DetalleSolicitudSecretaria() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {step === 'asignado' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-6 h-6 text-emerald-600" />
+                </div>
+                <p className="text-lg font-bold text-slate-800">Turno Asignado</p>
+                <p className="text-sm text-slate-500">
+                  {sol.nombreProfesional || 'Profesional'} &middot; {sol.fechaTurno ? formatearFechaHora(sol.fechaTurno) : ''}
+                </p>
+                <Link to="/secretaria/agenda"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  Ver en Agenda
+                </Link>
               </div>
             )}
 

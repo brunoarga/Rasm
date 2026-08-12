@@ -5,11 +5,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import { timeAgo } from '../../utils/fechas';
 
 function getInitial(n) {
+  if (n.postId) return 'F';
   if (n.titulo?.includes('Turno')) return 'T';
   if (n.titulo?.includes('Estado')) return 'E';
   if (n.titulo?.includes('Deriv')) return 'D';
   if (n.pacienteNombre) return n.pacienteNombre.charAt(0).toUpperCase();
   return 'N';
+}
+
+function esForo(n) {
+  return n.postId != null || n.titulo?.toLowerCase().includes('publicación') || n.titulo?.toLowerCase().includes('respuesta');
 }
 
 function esCita(n) {
@@ -41,6 +46,11 @@ export default function NotificationBell({ onSolicitudClick, onTurnoClick }) {
   const handleClick = (n) => {
     if (!n.leida) marcarComoLeida(n.id);
     setOpen(false);
+
+    if (esForo(n) && n.postId && user?.tipoUsuario === 'PACIENTE') {
+      navigate(`/foro/${n.postId}`);
+      return;
+    }
 
     if (esCita(n) && n.solicitudId) {
       if (user?.tipoUsuario === 'PROFESIONAL') {
