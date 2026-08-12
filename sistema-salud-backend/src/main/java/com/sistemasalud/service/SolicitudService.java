@@ -37,17 +37,24 @@ public class SolicitudService {
     private final DiarioSintomasRepository diarioSintomasRepository;
     private final RegistroSintomatologiaRepository registroSintomatologiaRepository;
     private final NotificacionService notificacionService;
+    private final MensajeService mensajeService;
 
     @Transactional
     public SolicitudResponse crearSolicitud(Long idUsuario, SolicitudRequest request) {
         Paciente paciente = pacienteRepository.findByUsuarioId(idUsuario).orElseThrow(() -> new RecursoNoEncontradoException("Paciente no encontrado"));
         if (!Boolean.TRUE.equals(paciente.getConsentimientoOk())) throw new ConsentimientoRequeridoException("Debe aceptar el consentimiento informado");
-        CategoriaAyuda categoria = categoriaAyudaRepository.findById(request.getIdCategoria()).orElseThrow(() -> new RecursoNoEncontradoException("Categoria no encontrada"));
+        return crearSolicitudCore(paciente, request.getIdCategoria(), request.getTitulo(), request.getDescripcion(),
+                request.getResumenBreve(), request.getEsUrgente(), request.getNivelRiesgo(), request.getAnamnesis());
+    }
+
+    private SolicitudResponse crearSolicitudCore(Paciente paciente, Long idCategoria, String titulo, String descripcion,
+                                                  String resumenBreve, Boolean esUrgente, String nivelRiesgo, String anamnesis) {
+        CategoriaAyuda categoria = categoriaAyudaRepository.findById(idCategoria).orElseThrow(() -> new RecursoNoEncontradoException("Categoria no encontrada"));
 
         Prioridad prioridad;
-        if (request.getNivelRiesgo() != null) {
-            prioridad = Prioridad.valueOf(request.getNivelRiesgo());
-        } else if (Boolean.TRUE.equals(request.getEsUrgente())) {
+        if (nivelRiesgo != null) {
+            prioridad = Prioridad.valueOf(nivelRiesgo);
+        } else if (Boolean.TRUE.equals(esUrgente)) {
             prioridad = Prioridad.URGENTE;
         } else {
             prioridad = categoria.getPrioridad();
@@ -56,8 +63,8 @@ public class SolicitudService {
         EstadoSolicitud estadoInicial = (prioridad == Prioridad.URGENTE) ? EstadoSolicitud.REVISADA : EstadoSolicitud.CREADA;
         Solicitud solicitud = solicitudRepository.save(Solicitud.builder()
                 .paciente(paciente).categoria(categoria)
-                .titulo(request.getTitulo()).descripcion(request.getDescripcion())
-                .resumenBreve(request.getResumenBreve()).anamnesis(request.getAnamnesis())
+                .titulo(titulo).descripcion(descripcion)
+                .resumenBreve(resumenBreve).anamnesis(anamnesis)
                 .estado(estadoInicial).prioridad(prioridad)
                 .fechaCreacion(LocalDateTime.now()).fechaActualizacion(LocalDateTime.now())
                 .activa(true).build());
@@ -176,6 +183,7 @@ public class SolicitudService {
         Profesional p = profesionalRepository.findById(idProfesional).orElseThrow(() -> new RecursoNoEncontradoException("Profesional no encontrado"));
         s.setProfesional(p); s.setEstado(EstadoSolicitud.ASIGNADA); s.setFechaActualizacion(LocalDateTime.now());
         s = solicitudRepository.save(s);
+        mensajeService.abrirConversacion(s);
         notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Profesional asignado", p.getUsuario().getNombreCompleto() + " fue asignado a tu solicitud", s);
         return mapToResponse(s);
     }
@@ -196,16 +204,44 @@ public class SolicitudService {
             nombreDestino = nuevoCentro.getNombre();
         }
         s.setEstado(EstadoSolicitud.DERIVADA); s.setFechaActualizacion(LocalDateTime.now());
+
+        String turnoTexto = "";
+        if (request.getFechaHora() != null) {
+            Profesional profTurno = nuevoProf != null ? nuevoProf : s.getProfesional();
+            if (profTurno == null)
+                throw new EstadoInvalidoException("No se puede asignar turno: la derivación no tiene profesional asignado");
+            LocalDateTime fechaHora = request.getFechaHora();
+            int duracion = request.getDuracion() != null ? request.getDuracion() : 30;
+            List<Cita> solapadas = citaRepository.findByProfesionalIdAndFechaHoraBetween(
+                    profTurno.getId(), fechaHora, fechaHora.plusMinutes(duracion));
+            if (!solapadas.isEmpty()) throw new SolicitudInvalidaException("El profesional ya tiene un turno en ese horario");
+
+            ModalidadCita modalidad = request.getModalidad() != null ? ModalidadCita.valueOf(request.getModalidad()) : ModalidadCita.PRESENCIAL;
+            Cita citaNueva = Cita.builder()
+                    .solicitud(s).profesional(profTurno).centroSalud(s.getCentroSalud())
+                    .fechaHora(fechaHora).duracion(duracion).modalidad(modalidad)
+                    .estado("PROGRAMADA").notas(request.getNotas())
+                    .build();
+            if (request.getTipoPractica() != null) citaNueva.setTipoPractica(TipoPractica.valueOf(request.getTipoPractica()));
+            citaRepository.save(citaNueva);
+
+            s.setFechaTurno(fechaHora);
+            s.setDuracionTurno(duracion);
+            s.setModalidad(modalidad.name());
+            turnoTexto = String.format(" con turno para el %s a las %s", fechaHora.toLocalDate(), fechaHora.toLocalTime());
+        }
+
         s = solicitudRepository.save(s);
 
         if (nuevoProf != null) {
+            mensajeService.abrirConversacion(s);
             notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Derivación a profesional",
-                    "Tu solicitud '" + s.getTitulo() + "' fue derivada al profesional: " + nombreDestino, s);
+                    "Tu solicitud '" + s.getTitulo() + "' fue derivada al profesional: " + nombreDestino + turnoTexto + ".", s);
             notificacionService.crearNotificacion(nuevoProf.getUsuario(), "Nueva derivación",
-                    "Se te ha derivado la solicitud '" + s.getTitulo() + "' del paciente " + s.getPaciente().getUsuario().getNombreCompleto(), s);
+                    "Se te ha derivado la solicitud '" + s.getTitulo() + "' del paciente " + s.getPaciente().getUsuario().getNombreCompleto() + turnoTexto + ".", s);
         } else if (request.getIdCentroSalud() != null) {
             notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Derivación a centro",
-                    "Tu solicitud '" + s.getTitulo() + "' fue derivada al centro: " + nombreDestino, s);
+                    "Tu solicitud '" + s.getTitulo() + "' fue derivada al centro: " + nombreDestino + turnoTexto + ".", s);
         }
         return mapToResponse(s);
     }
@@ -274,6 +310,7 @@ return centros;
                 fechaHora.toLocalTime().toString(),
                 centro != null ? centro.getNombre() : "Sin centro");
         notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Turno asignado", msgPaciente, s);
+        mensajeService.abrirConversacion(s);
 
         return mapToResponse(s);
     }
@@ -307,6 +344,13 @@ return centros;
                 .stream().filter(s -> s.getProfesional() == null || !s.getProfesional().getId().equals(p.getId())).toList();
         List<Solicitud> combinadas = new ArrayList<>(asignadas);
         combinadas.addAll(delSistema.stream().filter(s -> asignadas.stream().noneMatch(a -> a.getId().equals(s.getId()))).toList());
+        List<Cita> citasAtendidas = citaRepository.findByProfesionalIdAndEstadoOrderByFechaHoraDesc(p.getId(), "ATENDIDA");
+        for (Cita c : citasAtendidas) {
+            Solicitud s = c.getSolicitud();
+            if (s != null && combinadas.stream().noneMatch(x -> x.getId().equals(s.getId()))) {
+                combinadas.add(s);
+            }
+        }
         return combinadas.stream().map(this::mapToResponse).toList();
     }
 

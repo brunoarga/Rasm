@@ -28,9 +28,11 @@ import DashboardAdmin from './pages/admin/DashboardAdmin';
 import GestionUsuarios from './pages/admin/GestionUsuarios';
 import GestionCentros from './pages/admin/GestionCentros';
 import DashboardSecretaria from './pages/secretaria/DashboardSecretaria';
+import AgendaSecretaria from './pages/secretaria/AgendaSecretaria';
 import BandejaSolicitudesSecretaria from './pages/secretaria/BandejaSolicitudesSecretaria';
 import DetalleSolicitudSecretaria from './pages/secretaria/DetalleSolicitudSecretaria';
 import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
+import MensajesPage from './pages/mensajes/MensajesPage';
 import fondoBg from './assets/fondo.png';
 
 const PrivateRoute = ({ children, roles }) => {
@@ -73,9 +75,12 @@ function AppLayout({ home }) {
           <Route path="/admin/usuarios" element={<PrivateRoute roles={['ADMIN']}><GestionUsuarios /></PrivateRoute>} />
           <Route path="/admin/centros" element={<PrivateRoute roles={['ADMIN']}><GestionCentros /></PrivateRoute>} />
           <Route path="/secretaria/dashboard" element={<PrivateRoute roles={['SECRETARIO']}><DashboardSecretaria /></PrivateRoute>} />
+          <Route path="/secretaria/agenda" element={<PrivateRoute roles={['SECRETARIO']}><AgendaSecretaria /></PrivateRoute>} />
           <Route path="/secretaria/solicitudes" element={<PrivateRoute roles={['SECRETARIO']}><BandejaSolicitudesSecretaria /></PrivateRoute>} />
           <Route path="/secretaria/solicitudes/:id" element={<PrivateRoute roles={['SECRETARIO']}><DetalleSolicitudSecretaria /></PrivateRoute>} />
           <Route path="/notificaciones" element={<PrivateRoute><NotificacionesPage /></PrivateRoute>} />
+          <Route path="/mensajes" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL']}><MensajesPage /></PrivateRoute>} />
+          <Route path="/mensajes/:id" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL']}><MensajesPage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to={home} />} />
         </Routes>
       </div>

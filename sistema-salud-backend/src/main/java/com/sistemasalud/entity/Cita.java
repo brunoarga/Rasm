@@ -24,4 +24,6 @@ public class Cita {
     @Column(name = "numero_autorizacion", length = 50) private String numeroAutorizacion;
     @Column(name = "fecha_solicitud_autorizacion") private LocalDateTime fechaSolicitudAutorizacion;
     @Column(name = "fecha_respuesta_autorizacion") private LocalDateTime fechaRespuestaAutorizacion;
+    @Column(name = "recordatorio_24h_enviado") private Boolean recordatorio24hEnviado = false;
+    @Column(name = "recordatorio_2h_enviado") private Boolean recordatorio2hEnviado = false;
 }

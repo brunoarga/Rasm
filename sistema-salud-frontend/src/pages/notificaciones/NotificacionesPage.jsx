@@ -1,17 +1,31 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import useNotifications from '../../hooks/useNotifications';
 import { parsearFechaLocal } from '../../utils/fechas';
 
+function iconoNotificacion(n) {
+  if (n.postId) return 'F';
+  if (n.titulo?.includes('Turno')) return 'T';
+  if (n.titulo?.includes('Deriv')) return 'D';
+  if (n.titulo?.includes('Estado')) return 'E';
+  return 'N';
+}
+
 export default function NotificacionesPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { notificaciones, noLeidas, marcarComoLeida } = useNotifications();
 
   const backLink = !user ? '/' :
     user.tipoUsuario === 'PACIENTE' ? '/mi-espacio' :
     user.tipoUsuario === 'PROFESIONAL' ? '/profesional/dashboard' :
     user.tipoUsuario === 'SECRETARIO' ? '/secretaria/dashboard' : '/';
+
+  const abrirNotificacion = (n) => {
+    if (!n.leida) marcarComoLeida(n.id);
+    if (n.postId && user?.tipoUsuario === 'PACIENTE') navigate(`/foro/${n.postId}`);
+  };
 
   return (
     <div className="page-container" style={{ maxWidth: 720 }}>
@@ -35,7 +49,7 @@ export default function NotificacionesPage() {
           {notificaciones.map(n => (
             <div
               key={n.id}
-              onClick={() => !n.leida && marcarComoLeida(n.id)}
+              onClick={() => abrirNotificacion(n)}
               style={{
                 display: 'flex', gap: 14, padding: '14px 18px',
                 borderRadius: 12, marginBottom: 8, cursor: 'pointer',
@@ -55,7 +69,7 @@ export default function NotificacionesPage() {
                 background: n.leida ? 'var(--color-stone)' : 'var(--color-teal)',
                 color: n.leida ? 'var(--color-warm-gray)' : '#fff'
               }}>
-                {n.titulo?.includes('Turno') ? 'T' : n.titulo?.includes('Estado') ? 'E' : n.titulo?.includes('Deriv') ? 'D' : 'N'}
+                {iconoNotificacion(n)}
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

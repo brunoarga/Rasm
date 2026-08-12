@@ -132,7 +132,7 @@ function SolicitudCard({ solicitud: s }) {
             </div>
             <Link to={`/secretaria/solicitudes/${s.id}`}
               className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors">
-              Derivar a Centro
+              {s.fechaTurno ? 'Ver Turno' : s.idCentroSalud ? 'Asignar Profesional' : 'Derivar a Centro'}
               <ChevronRight className="w-3 h-3" />
             </Link>
           </div>

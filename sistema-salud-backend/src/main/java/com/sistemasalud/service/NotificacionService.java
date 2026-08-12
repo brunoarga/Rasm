@@ -4,6 +4,7 @@ import com.sistemasalud.dto.response.NotificacionResponse;
 import com.sistemasalud.entity.Cita;
 import com.sistemasalud.entity.Notificacion;
 import com.sistemasalud.entity.Paciente;
+import com.sistemasalud.entity.Post;
 import com.sistemasalud.entity.Solicitud;
 import com.sistemasalud.entity.Usuario;
 import com.sistemasalud.enums.TipoUsuario;
@@ -22,10 +23,61 @@ public class NotificacionService {
     private final EmailService emailService;
 
     @Transactional
+    public Notificacion crearNotificacion(Usuario u, String titulo, String msg) {
+        return crearNotificacion(u, titulo, msg, null, null);
+    }
+
+    @Transactional
     public Notificacion crearNotificacion(Usuario u, String titulo, String msg, Solicitud s) {
-        Notificacion n = notificacionRepository.save(Notificacion.builder().usuario(u).titulo(titulo).mensaje(msg).solicitud(s).leida(false).fechaEnvio(LocalDateTime.now()).build());
+        return crearNotificacion(u, titulo, msg, s, null);
+    }
+
+    @Transactional
+    public Notificacion crearNotificacion(Usuario u, String titulo, String msg, Solicitud s, Post post) {
+        Notificacion n = notificacionRepository.save(Notificacion.builder().usuario(u).titulo(titulo).mensaje(msg).solicitud(s).post(post).leida(false).fechaEnvio(LocalDateTime.now()).build());
         emailService.enviarEmailNotificacion(u.getEmail(), titulo, msg);
         return n;
+    }
+
+    @Transactional
+    public void notificarRespuestaForo(Post post, Paciente autorComentario, String contenido, boolean esAnonimo) {
+        if (post == null || post.getUsuario() == null || post.getUsuario().getUsuario() == null) return;
+        if (autorComentario != null && autorComentario.getId().equals(post.getUsuario().getId())) return;
+
+        String quien = esAnonimo || autorComentario == null || autorComentario.getUsuario() == null
+                ? "Alguien"
+                : autorComentario.getUsuario().getNombreCompleto();
+        String resumen = resumir(contenido);
+        String titulo = "Nueva respuesta en tu publicación";
+        String msg = String.format("%s respondió tu publicación «%s»: %s", quien, post.getTitulo(), resumen);
+
+        notificacionRepository.save(Notificacion.builder()
+                .usuario(post.getUsuario().getUsuario())
+                .titulo(titulo)
+                .mensaje(msg)
+                .post(post)
+                .leida(false)
+                .fechaEnvio(LocalDateTime.now())
+                .build());
+    }
+
+    private String resumir(String texto) {
+        String limpio = texto == null ? "" : texto.replaceAll("\\s+", " ").trim();
+        if (limpio.length() > 120) limpio = limpio.substring(0, 117).trim() + "…";
+        return limpio;
+    }
+
+    @Transactional
+    public void notificarMensaje(Usuario destinatario, String titulo, String msg, Solicitud s) {
+        if (destinatario == null) return;
+        notificacionRepository.save(Notificacion.builder()
+                .usuario(destinatario)
+                .titulo(titulo)
+                .mensaje(msg)
+                .solicitud(s)
+                .leida(false)
+                .fechaEnvio(LocalDateTime.now())
+                .build());
     }
 
     @Transactional
@@ -37,7 +89,8 @@ public class NotificacionService {
     }
 
     @Transactional
-    public void crearNotificacionParaProfesionales(String titulo, String msg, Solicitud s) {        usuarioRepository.findAll().stream().filter(u -> u.getTipoUsuario() == TipoUsuario.PROFESIONAL && u.getActivo()).forEach(prof -> notificacionRepository.save(Notificacion.builder().usuario(prof).titulo(titulo).mensaje(msg).solicitud(s).leida(false).fechaEnvio(LocalDateTime.now()).build()));
+    public void crearNotificacionParaProfesionales(String titulo, String msg, Solicitud s) {
+        usuarioRepository.findAll().stream().filter(u -> (u.getTipoUsuario() == TipoUsuario.PROFESIONAL || u.getTipoUsuario() == TipoUsuario.SECRETARIO) && u.getActivo()).forEach(prof -> notificacionRepository.save(Notificacion.builder().usuario(prof).titulo(titulo).mensaje(msg).solicitud(s).leida(false).fechaEnvio(LocalDateTime.now()).build()));
     }
 
     @Transactional(readOnly = true)
@@ -65,6 +118,7 @@ public class NotificacionService {
 
     private NotificacionResponse toResponse(Notificacion n) {
         Solicitud s = n.getSolicitud();
+        Post p = n.getPost();
         String pacienteNombre = s != null && s.getPaciente() != null
                 ? s.getPaciente().getUsuario().getNombreCompleto() : null;
         return NotificacionResponse.builder()
@@ -73,6 +127,8 @@ public class NotificacionService {
                 .solicitudId(s != null ? s.getId() : null)
                 .solicitudTitulo(s != null ? s.getTitulo() : null)
                 .pacienteNombre(pacienteNombre)
+                .postId(p != null ? p.getId() : null)
+                .postTitulo(p != null ? p.getTitulo() : null)
                 .build();
     }
 }

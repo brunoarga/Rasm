@@ -1,5 +1,6 @@
 package com.sistemasalud.service;
 
+import com.sistemasalud.dto.request.CentroSaludRequest;
 import com.sistemasalud.entity.CentroObraSocialPractica;
 import com.sistemasalud.entity.CentroSalud;
 import com.sistemasalud.enums.TipoPractica;
@@ -8,6 +9,7 @@ import com.sistemasalud.repository.CentroSaludRepository;
 import com.sistemasalud.util.GeoUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
 
@@ -17,6 +19,24 @@ public class CentroSaludService {
     private final CentroObraSocialPracticaRepository centroObraSocialPracticaRepository;
 
     public List<CentroSalud> listarCentros() { return centroSaludRepository.findByActivoTrue(); }
+
+    @Transactional
+    public CentroSalud crearCentro(CentroSaludRequest r) {
+        if (centroSaludRepository.existsByNombre(r.getNombre().trim()))
+            throw new com.sistemasalud.exception.SolicitudInvalidaException("Ya existe un centro con ese nombre");
+        return centroSaludRepository.save(CentroSalud.builder()
+                .nombre(r.getNombre().trim())
+                .direccion(r.getDireccion())
+                .latitud(r.getLatitud())
+                .longitud(r.getLongitud())
+                .telefono(r.getTelefono())
+                .tipoCentro(r.getTipoCentro())
+                .esPublico(r.getEsPublico() != null ? r.getEsPublico() : true)
+                .tieneEmergencias(r.getTieneEmergencias() != null ? r.getTieneEmergencias() : false)
+                .horarioAtencion(r.getHorarioAtencion())
+                .activo(r.getActivo() != null ? r.getActivo() : true)
+                .build());
+    }
 
     public List<CentroSalud> buscarCercanos(Double lat, Double lon, Double radioKm, Long idObraSocial, String tipoPractica) {
         List<CentroSalud> centros;

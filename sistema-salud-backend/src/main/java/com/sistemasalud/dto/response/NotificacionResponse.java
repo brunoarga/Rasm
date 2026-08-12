@@ -16,4 +16,6 @@ public class NotificacionResponse {
     private Long solicitudId;
     private String solicitudTitulo;
     private String pacienteNombre;
+    private Long postId;
+    private String postTitulo;
 }

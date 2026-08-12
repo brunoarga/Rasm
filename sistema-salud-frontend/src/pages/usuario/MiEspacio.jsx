@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import InsightsEmocionales from '../../components/diario/InsightsEmocionales';
+import HistoriaClinicaModal from '../../components/usuario/HistoriaClinicaModal';
 import { toast } from 'react-toastify';
 import { parsearFechaLocal } from '../../utils/fechas';
 import {
@@ -11,9 +12,8 @@ import {
   Moon, Brain, Heart,
   Phone, Save, Trash2,
   Smile, Meh, Frown, Camera, Mail, BadgeCheck, BookOpen,
-  PhoneCall, Activity
+  PhoneCall, Activity, MessageSquare
 } from 'lucide-react';
-
 const optsFecha = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
 const optsHora = { hour: '2-digit', minute: '2-digit' };
 
@@ -276,6 +276,7 @@ export default function MiEspacio() {
   const [historial, setHistorial] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [crisisOpen, setCrisisOpen] = useState(false);
+  const [historiaAbierta, setHistoriaAbierta] = useState(false);
 
   const [form, setForm] = useState({
     estadoAnimo: '',
@@ -842,10 +843,32 @@ export default function MiEspacio() {
               </button>
             </div>
 
+            {/* ─── HISTORIA CLÍNICA ─── */}
+            <div className="card-blanca shadow-xl p-5">
+              <button onClick={() => setHistoriaAbierta(true)}
+                className="w-full flex items-center gap-3 text-left group">
+                <div className="w-11 h-11 rounded-xl bg-teal-medico/10 flex items-center justify-center shrink-0 group-hover:bg-teal-medico/20 transition-colors">
+                  <BookOpen className="w-5 h-5 text-teal-medico" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-900 group-hover:text-teal-medico transition-colors">Mi Historia Clínica</p>
+                  <p className="text-[11px] text-slate-500">Consultá y descargá tus registros clínicos</p>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-teal-medico transition-colors" />
+              </button>
+            </div>
+
             {/* ─── PRÓXIMA CONSULTA ─── */}
             <div className="card-consulta shadow-xl p-5">
               <h3 className="text-xs font-semibold text-teal-medico uppercase tracking-wider mb-3">Próxima Consulta</h3>
               <TurnoCard turno={proxTurno} compact />
+              {proxTurno && (proxTurno.idProfesional || proxTurno.nombreProfesional) && (
+                <button onClick={() => navigate(`/mensajes?solicitud=${proxTurno.id}`)}
+                  className="mt-3 w-full rounded-xl border px-4 py-2.5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors hover:bg-teal-medico/5"
+                  style={{ borderColor: '#E8E4DF', color: '#E07A5F' }}>
+                  <MessageSquare className="w-3.5 h-3.5" /> Mensaje con tu profesional
+                </button>
+              )}
             </div>
 
             {/* ─── PLAN TERAPÉUTICO ─── */}
@@ -917,6 +940,8 @@ export default function MiEspacio() {
           </div>
         </div>
       </footer>
+
+      {historiaAbierta && <HistoriaClinicaModal onClose={() => setHistoriaAbierta(false)} />}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 package com.sistemasalud.security;
 
+import com.sistemasalud.entity.Usuario;
+import com.sistemasalud.repository.UsuarioRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,21 +17,30 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) { this.jwtTokenProvider = jwtTokenProvider; }
+    private final UsuarioRepository usuarioRepository;
+
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, UsuarioRepository usuarioRepository) {
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.usuarioRepository = usuarioRepository;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String token = getTokenFromRequest(request);
         if (StringUtils.hasText(token) && jwtTokenProvider.validarToken(token)) {
-            UserPrincipal userPrincipal = UserPrincipal.builder()
-                    .id(jwtTokenProvider.getIdUsuarioFromToken(token))
-                    .email(jwtTokenProvider.getEmailFromToken(token))
-                    .tipoUsuario(jwtTokenProvider.getTipoUsuarioFromToken(token))
-                    .tipoProfesional(jwtTokenProvider.getTipoProfesionalFromToken(token))
-                    .build();
-            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
-            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(auth);
+            Long idUsuario = jwtTokenProvider.getIdUsuarioFromToken(token);
+            Usuario usuario = usuarioRepository.findById(idUsuario).orElse(null);
+            if (usuario != null && Boolean.TRUE.equals(usuario.getActivo())) {
+                UserPrincipal userPrincipal = UserPrincipal.builder()
+                        .id(idUsuario)
+                        .email(jwtTokenProvider.getEmailFromToken(token))
+                        .tipoUsuario(jwtTokenProvider.getTipoUsuarioFromToken(token))
+                        .tipoProfesional(jwtTokenProvider.getTipoProfesionalFromToken(token))
+                        .build();
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
         }
         filterChain.doFilter(request, response);
     }

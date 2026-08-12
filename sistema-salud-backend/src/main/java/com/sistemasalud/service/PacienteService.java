@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service @RequiredArgsConstructor @Slf4j
 public class PacienteService {
@@ -112,5 +113,26 @@ public class PacienteService {
         }
 
         return pacienteRepository.save(paciente);
+    }
+
+    @Transactional(readOnly = true)
+    public List<java.util.Map<String, Object>> buscarPacientes(String q) {
+        String filtro = (q == null ? "" : q.trim());
+        if (filtro.length() < 2) return java.util.List.of();
+        List<Paciente> resultados = pacienteRepository.buscarPorFiltro(filtro);
+        return resultados.stream().map(p -> {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("idPaciente", p.getId());
+            m.put("nombreCompleto", p.getUsuario() != null ? p.getUsuario().getNombreCompleto() : null);
+            m.put("email", p.getUsuario() != null ? p.getUsuario().getEmail() : null);
+            m.put("telefono", p.getUsuario() != null ? p.getUsuario().getTelefono() : null);
+            m.put("tipoDocumento", p.getTipoDocumento());
+            m.put("numDocumento", p.getNumDocumento());
+            m.put("consentimientoOk", p.getConsentimientoOk());
+            m.put("nombreObraSocial", p.getObraSocial() != null ? p.getObraSocial().getNombre() : "Sin cobertura");
+            m.put("numeroAfiliado", p.getNumeroAfiliado());
+            m.put("planCobertura", p.getPlanCobertura());
+            return m;
+        }).toList();
     }
 }

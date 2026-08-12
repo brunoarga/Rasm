@@ -1,6 +1,7 @@
 package com.sistemasalud.service;
 
 import com.sistemasalud.dto.request.HistoriaClinicaRequest;
+import com.sistemasalud.dto.response.HistoriaClinicaResponse;
 import com.sistemasalud.entity.*;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
 import com.sistemasalud.repository.*;
@@ -58,6 +59,42 @@ public class HistoriaClinicaService {
     public List<HistoriaClinica> obtenerHistorialSolicitud(Long id) {
         if (id == null) throw new IllegalArgumentException("El id de la solicitud es obligatorio");
         return historiaClinicaRepository.findBySolicitudIdOrderByFechaCreacionDesc(id);
+    }
+
+    public List<HistoriaClinicaResponse> obtenerHistorialPropio(Long idUsuario) {
+        Paciente p = pacienteRepository.findByUsuarioId(idUsuario)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Paciente no encontrado para el usuario: " + idUsuario));
+        List<HistoriaClinica> registros = historiaClinicaRepository.findByPacienteIdConRelaciones(p.getId());
+        return registros.stream().map(this::toResponse).toList();
+    }
+
+    private HistoriaClinicaResponse toResponse(HistoriaClinica hc) {
+        String nombreProfesional = null;
+        if (hc.getProfesional() != null && hc.getProfesional().getUsuario() != null) {
+            nombreProfesional = hc.getProfesional().getUsuario().getNombreCompleto();
+        }
+        String nombrePaciente = null;
+        if (hc.getPaciente() != null && hc.getPaciente().getUsuario() != null) {
+            nombrePaciente = hc.getPaciente().getUsuario().getNombreCompleto();
+        }
+        String tituloSolicitud = null;
+        if (hc.getSolicitud() != null) {
+            tituloSolicitud = hc.getSolicitud().getTitulo();
+        }
+        return HistoriaClinicaResponse.builder()
+                .id(hc.getId())
+                .idPaciente(hc.getPaciente() != null ? hc.getPaciente().getId() : null)
+                .nombrePaciente(nombrePaciente)
+                .idSolicitud(hc.getSolicitud() != null ? hc.getSolicitud().getId() : null)
+                .tituloSolicitud(tituloSolicitud)
+                .idProfesional(hc.getProfesional() != null ? hc.getProfesional().getId() : null)
+                .nombreProfesional(nombreProfesional)
+                .diagnostico(hc.getDiagnostico())
+                .tratamiento(hc.getTratamiento())
+                .observaciones(hc.getObservaciones())
+                .tipoPlantilla(hc.getTipoPlantilla())
+                .fechaCreacion(hc.getFechaCreacion())
+                .build();
     }
 
     @Transactional
