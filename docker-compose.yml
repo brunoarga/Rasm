@@ -12,7 +12,6 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./sistema-salud-backend/src/main/resources/data.sql:/docker-entrypoint-initdb.d/01-data.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       timeout: 10s
@@ -47,14 +46,14 @@ services:
     build:
       context: ./sistema-salud-frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: /api
     container_name: sistema-salud-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
       - "3000:80"
-    environment:
-      REACT_APP_API_URL: http://localhost:8080/api
 
 volumes:
   mysql_data:
