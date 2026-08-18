@@ -27,10 +27,10 @@ export default function CentrosAdheridosMarquee() {
   return (
     <section id="centros" className="py-10 lg:py-14 overflow-hidden bg-white/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 text-center">
-        <p className="text-xs font-semibold tracking-[0.15em] uppercase text-pizarra-light/50">
+        <p className="text-xs font-semibold tracking-[0.15em] uppercase text-white">
           Centros de Salud y Clínicas Adheridas en Jujuy
         </p>
-        <p className="text-xs text-pizarra-light/50 mt-1">
+        <p className="text-xs text-white mt-1">
           Contacto y horarios de atención
         </p>
       </div>

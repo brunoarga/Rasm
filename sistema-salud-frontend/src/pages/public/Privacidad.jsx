@@ -8,7 +8,7 @@ export default function Privacidad() {
       <h1 className="text-2xl sm:text-3xl mt-4" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, color: '#1E2124' }}>
         Política de Privacidad
       </h1>
-      <div className="mt-6 space-y-5 text-sm leading-relaxed" style={{ color: '#6C757D' }}>
+      <div className="mt-6 space-y-5 text-sm leading-relaxed" style={{ color: '#1E2124' }}>
         <section>
           <h2 className="text-base font-semibold mb-1" style={{ color: '#1E2124' }}>1. Datos que recolectamos</h2>
           <p>

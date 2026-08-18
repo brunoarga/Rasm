@@ -36,7 +36,8 @@ import MensajesPage from './pages/mensajes/MensajesPage';
 import fondoBg from './assets/fondo.png';
 
 const PrivateRoute = ({ children, roles }) => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return null;
   if (!user) return <Navigate to="/login" />;
   if (roles && !roles.includes(user.tipoUsuario)) return <Navigate to="/" />;
   return children;
