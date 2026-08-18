@@ -19,11 +19,11 @@ public class Cita {
     @Column(length = 20) private String estado;
     @Column(columnDefinition = "TEXT") private String notas;
     @Enumerated(EnumType.STRING) @Column(name = "tipo_practica", length = 30) private TipoPractica tipoPractica;
-    @Column(name = "requiere_autorizacion") private Boolean requiereAutorizacion = false;
-    @Enumerated(EnumType.STRING) @Column(name = "estado_autorizacion", length = 20) private EstadoAutorizacion estadoAutorizacion = EstadoAutorizacion.NO_REQUERIDA;
+    @Column(name = "requiere_autorizacion") @Builder.Default private Boolean requiereAutorizacion = false;
+    @Enumerated(EnumType.STRING) @Column(name = "estado_autorizacion", length = 20) @Builder.Default private EstadoAutorizacion estadoAutorizacion = EstadoAutorizacion.NO_REQUERIDA;
     @Column(name = "numero_autorizacion", length = 50) private String numeroAutorizacion;
     @Column(name = "fecha_solicitud_autorizacion") private LocalDateTime fechaSolicitudAutorizacion;
     @Column(name = "fecha_respuesta_autorizacion") private LocalDateTime fechaRespuestaAutorizacion;
-    @Column(name = "recordatorio_24h_enviado") private Boolean recordatorio24hEnviado = false;
-    @Column(name = "recordatorio_2h_enviado") private Boolean recordatorio2hEnviado = false;
+    @Column(name = "recordatorio_24h_enviado") @Builder.Default private Boolean recordatorio24hEnviado = false;
+    @Column(name = "recordatorio_2h_enviado") @Builder.Default private Boolean recordatorio2hEnviado = false;
 }
