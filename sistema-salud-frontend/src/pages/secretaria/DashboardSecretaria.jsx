@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Users, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays } from 'lucide-react';
+import { AlertTriangle, Users, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { esMismoDia, formatearFechaHora } from '../../utils/fechas';
+import NuevaSolicitudPresencialModal from '../../components/secretaria/NuevaSolicitudPresencialModal';
 
 const PRIORIDAD_CLS = {
   URGENTE: 'bg-red-100 text-red-700 border-red-200',
@@ -41,11 +42,16 @@ export default function DashboardSecretaria() {
   const { user } = useAuth();
   const [todas, setTodas] = useState([]);
   const [filtro, setFiltro] = useState('todas');
+  const [modalNueva, setModalNueva] = useState(false);
 
-  useEffect(() => {
+  const recargar = () => {
     api.get('/solicitudes').then(r => {
       setTodas(r.data || []);
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    recargar();
   }, []);
 
   const urg = s => s.prioridad?.toUpperCase();
@@ -212,6 +218,14 @@ export default function DashboardSecretaria() {
                   <span className="flex-1">Agenda de Turnos</span>
                   <ChevronRight className="w-4 h-4 text-slate-400" />
                 </Link>
+                <button onClick={() => setModalNueva(true)}
+                  className="flex items-center gap-3 rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-all">
+                  <div className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+                    <UserPlus className="w-4 h-4" />
+                  </div>
+                  <span className="flex-1">Registrar Paciente Presencial</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
@@ -247,6 +261,8 @@ export default function DashboardSecretaria() {
           </div>
         </div>
       </div>
+
+      {modalNueva && <NuevaSolicitudPresencialModal onClose={() => setModalNueva(false)} onCreated={recargar} />}
     </div>
   );
 }

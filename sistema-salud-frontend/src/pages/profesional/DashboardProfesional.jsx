@@ -678,7 +678,7 @@ export default function DashboardProfesional() {
         </div>
       </div>
 
-      {registrarModal && <RegistrarPacienteModal onClose={() => setRegistrarModal(false)} centroSaludId={perfil.centroActual?.id} />}
+      {registrarModal && <RegistrarPacienteModal onClose={() => setRegistrarModal(false)} centroSaludId={perfil.centroActual?.id} profesionalId={perfil.id} />}
     </div>
   );
 }

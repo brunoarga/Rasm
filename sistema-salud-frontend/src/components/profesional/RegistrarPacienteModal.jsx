@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 
-export default function RegistrarPacienteModal({ onClose, centroSaludId }) {
+export default function RegistrarPacienteModal({ onClose, centroSaludId, profesionalId }) {
   const [form, setForm] = useState({
     nombreCompleto: '',
     telefono: '',
@@ -16,6 +16,15 @@ export default function RegistrarPacienteModal({ onClose, centroSaludId }) {
     planCobertura: '',
   });
   const [enviando, setEnviando] = useState(false);
+  const [cats, setCats] = useState([]);
+  const [crearSolicitud, setCrearSolicitud] = useState(false);
+  const [sol, setSol] = useState({
+    idCategoria: '', titulo: '', descripcion: '', fechaHora: '', duracion: 30, modalidad: 'PRESENCIAL',
+  });
+
+  useEffect(() => {
+    api.get('/categorias').then(r => setCats(r.data || [])).catch(() => {});
+  }, []);
 
   const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -54,15 +63,36 @@ export default function RegistrarPacienteModal({ onClose, centroSaludId }) {
       toast.warning('El nombre completo es obligatorio');
       return;
     }
+    if (crearSolicitud && (!sol.idCategoria || !sol.titulo.trim() || !sol.descripcion.trim())) {
+      toast.warning('Completá categoría, título y descripción de la solicitud');
+      return;
+    }
     setEnviando(true);
     try {
       const body = buildPayload();
-      await api.post('/pacientes/registro-profesional', body);
-      toast.success('Paciente registrado exitosamente');
+      const pacienteRes = await api.post('/pacientes/registro-profesional', body);
+
+      if (crearSolicitud) {
+        const paciente = pacienteRes.data;
+        await api.post('/solicitudes/presencial', {
+          idPaciente: paciente.id,
+          idCategoria: parseInt(sol.idCategoria, 10),
+          titulo: sol.titulo.trim(),
+          descripcion: sol.descripcion.trim(),
+          idCentroSalud: centroSaludId || null,
+          idProfesional: profesionalId || null,
+          fechaHora: sol.fechaHora || null,
+          duracion: sol.duracion,
+          modalidad: sol.modalidad,
+        });
+        toast.success('Paciente y solicitud registrados');
+      } else {
+        toast.success('Paciente registrado exitosamente');
+      }
       onClose();
     } catch (err) {
       const resp = err.response;
-      const msg = resp?.data?.message || resp?.data || 'Error al registrar paciente';
+      const msg = resp?.data?.message || resp?.data?.mensaje || resp?.data || 'Error al registrar paciente';
       toast.error(typeof msg === 'string' ? msg : 'Error al registrar paciente');
     } finally {
       setEnviando(false);
@@ -140,6 +170,47 @@ export default function RegistrarPacienteModal({ onClose, centroSaludId }) {
               </div>
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: '#1E293B' }}>
+            <input type="checkbox" checked={crearSolicitud} onChange={e => setCrearSolicitud(e.target.checked)} />
+            Crear solicitud de atención ahora
+          </label>
+
+          {crearSolicitud && (
+            <div className="border-t pt-4 space-y-3" style={{ borderColor: '#E8E4DF' }}>
+              <p className="text-xs font-semibold" style={{ color: '#7C7F85', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Solicitud de atención</p>
+              <div>
+                <select value={sol.idCategoria} onChange={e => setSol({ ...sol, idCategoria: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
+                  <option value="">Categoría *</option>
+                  {cats.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <input value={sol.titulo} onChange={e => setSol({ ...sol, titulo: e.target.value })}
+                placeholder="Título *" className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }} />
+              <textarea value={sol.descripcion} onChange={e => setSol({ ...sol, descripcion: e.target.value })} rows={3}
+                placeholder="Descripción *" className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none resize-none" style={{ borderColor: '#E8E4DF' }} />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2 flex gap-2">
+                  <input type="datetime-local" value={sol.fechaHora} onChange={e => setSol({ ...sol, fechaHora: e.target.value })}
+                    className="flex-1 px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }} />
+                </div>
+                <select value={sol.duracion} onChange={e => setSol({ ...sol, duracion: parseInt(e.target.value, 10) })}
+                  className="px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
+                  <option value={30}>30 min</option>
+                  <option value={45}>45 min</option>
+                  <option value={60}>60 min</option>
+                </select>
+              </div>
+              <div>
+                <select value={sol.modalidad} onChange={e => setSol({ ...sol, modalidad: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
+                  <option value="PRESENCIAL">Presencial</option>
+                  <option value="VIRTUAL">Virtual</option>
+                </select>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose}
