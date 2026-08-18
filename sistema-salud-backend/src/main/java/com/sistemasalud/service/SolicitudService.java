@@ -196,6 +196,9 @@ public class SolicitudService {
         if (request.getIdProfesional() != null) {
             nuevoProf = profesionalRepository.findById(request.getIdProfesional()).orElseThrow(() -> new RecursoNoEncontradoException("Profesional no encontrado"));
             s.setProfesional(nuevoProf);
+            if (request.getIdCentroSalud() == null && nuevoProf.getCentroSalud() != null) {
+                s.setCentroSalud(nuevoProf.getCentroSalud());
+            }
             nombreDestino = nuevoProf.getUsuario().getNombreCompleto();
         }
         if (request.getIdCentroSalud() != null) {

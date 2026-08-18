@@ -323,6 +323,25 @@ class SolicitudServiceTest {
     }
 
     @Test
+    void derivarSolicitud_aProfesionalDeOtroCentro_deberiaReasignarCentro() {
+        solicitud.setProfesional(profesional);
+        CentroSalud centroNuevo = CentroSalud.builder().id(99L).nombre("Hospital de Perico").build();
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(profesionalRepository.findById(2L)).thenReturn(Optional.of(Profesional.builder().id(2L).usuario(Usuario.builder().id(3L).nombreCompleto("Dr. Otro").email("otro@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build()).centroSalud(centroNuevo).build()));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DerivacionRequest request = new DerivacionRequest();
+        request.setIdProfesional(2L);
+
+        service.derivarSolicitud(1L, request);
+
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .anyMatch(s -> s.getCentroSalud() != null && s.getCentroSalud().getId().equals(99L));
+    }
+
+    @Test
     void derivarSolicitud_conTurno_deberiaCrearCitaYAgendarSolicitud() {
         solicitud.setProfesional(profesional);
         when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));

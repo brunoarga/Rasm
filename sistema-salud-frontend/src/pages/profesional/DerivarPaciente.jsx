@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Building2, User, Search, Send, Loader2, MapPin, CalendarClock } from 'lucide-react';
 import api from '../../services/api';
@@ -19,6 +19,25 @@ export default function DerivarPaciente() {
     api.get('/profesionales').then(r => setProfs(r.data)).catch(() => {});
     api.get('/obras-sociales').then(r => setOss(r.data)).catch(() => {});
   }, [idSolicitud]);
+
+  const profsAgrupados = useMemo(() => {
+    const actualCentroId = profs.find(p => p.id === sol?.idProfesional)?.centroSalud?.id;
+    const grupos = {};
+    profs.filter(p => p.id !== sol?.idProfesional).forEach(p => {
+      const nombre = p.centroSalud?.nombre || 'Sin centro asignado';
+      (grupos[nombre] = grupos[nombre] || []).push(p);
+    });
+    return Object.keys(grupos)
+      .sort((a, b) => {
+        const aEsActual = grupos[a][0]?.centroSalud?.id === actualCentroId;
+        const bEsActual = grupos[b][0]?.centroSalud?.id === actualCentroId;
+        if (aEsActual !== bEsActual) return aEsActual ? -1 : 1;
+        if (a === 'Sin centro asignado') return 1;
+        if (b === 'Sin centro asignado') return -1;
+        return a.localeCompare(b);
+      })
+      .map(nombre => ({ nombre, items: grupos[nombre] }));
+  }, [profs, sol]);
 
   const buscarCentros = async () => {
     setBuscando(true);
@@ -89,8 +108,14 @@ export default function DerivarPaciente() {
                   <select className="w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none" style={{ borderColor: '#E8E4DF', color: '#1E293B' }}
                     value={f.idProfesional} onChange={e => setF({ ...f, idProfesional: e.target.value })}>
                     <option value="">Seleccionar...</option>
-                    {profs.filter(p => sol?.idProfesional !== p.id).map(p => (
-                      <option key={p.id} value={p.id}>{p.usuario?.nombreCompleto} - {p.usuario?.tipoProfesional}</option>
+                    {profsAgrupados.map(g => (
+                      <optgroup key={g.nombre} label={g.nombre === 'Sin centro asignado' ? 'Sin centro asignado' : `Centro: ${g.nombre}`}>
+                        {g.items.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.usuario?.nombreCompleto}{p.usuario?.tipoProfesional ? ` · ${p.usuario.tipoProfesional}` : ''}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
