@@ -109,8 +109,8 @@ export default function LandingPage() {
             <div>
               <p className="text-sm font-semibold text-pizarra dark:text-slate-100 mb-3">Institucional</p>
               <ul className="space-y-2.5 text-xs">
-                <li><Link to="/terminos" className="text-pizarra-light hover:text-teal-medico transition-colors">Términos y condiciones</Link></li>
-                <li><Link to="/privacidad" className="text-pizarra-light hover:text-teal-medico transition-colors">Política de privacidad</Link></li>
+                <li><Link to="/terminos" className="text-pizarra hover:text-teal-medico transition-colors">Términos y condiciones</Link></li>
+                <li><Link to="/privacidad" className="text-pizarra hover:text-teal-medico transition-colors">Política de privacidad</Link></li>
                 <li>
                   <a href="https://salud.jujuy.gob.ar" target="_blank" rel="noopener noreferrer" className="text-pizarra-light hover:text-teal-medico transition-colors">Ministerio de Salud de Jujuy</a>
                 </li>
@@ -197,8 +197,8 @@ function SectionHeader({ label, title, subtitle }) {
       <span className="inline-block text-xs font-semibold tracking-[0.2em] uppercase text-teal-medico bg-teal-medico/10 px-4 py-1.5 rounded-full mb-4">
         {label}
       </span>
-      <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-pizarra">{title}</h2>
-      <p className="mt-3 text-pizarra-light text-base sm:text-lg">{subtitle}</p>
+      <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white">{title}</h2>
+      <p className="mt-3 text-white text-base sm:text-lg">{subtitle}</p>
     </div>
   );
 }

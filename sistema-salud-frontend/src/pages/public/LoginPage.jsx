@@ -16,7 +16,7 @@ export default function LoginPage() {
     try {
       const data = await login(email, password);
       toast.success(`Bienvenido ${data.nombreCompleto}`);
-      const r = { PACIENTE: '/mi-espacio', PROFESIONAL: '/profesional/dashboard', ADMIN: '/admin/dashboard' };
+      const r = { PACIENTE: '/mi-espacio', PROFESIONAL: '/profesional/dashboard', SECRETARIO: '/secretaria/dashboard', ADMIN: '/admin/dashboard' };
       navigate(r[data.tipoUsuario] || '/');
     } catch (err) {
       toast.error(err.response?.data?.mensaje || 'Error al iniciar sesion');
