@@ -2,6 +2,7 @@ package com.sistemasalud.controller;
 
 import com.sistemasalud.dto.request.AsignarTurnoRequest;
 import com.sistemasalud.dto.request.DerivacionRequest;
+import com.sistemasalud.dto.request.SolicitudPresencialRequest;
 import com.sistemasalud.dto.request.SolicitudRequest;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse;
 import com.sistemasalud.dto.response.SolicitudResponse;
@@ -30,6 +31,9 @@ public class SolicitudController {
 
     @PostMapping @PreAuthorize("hasRole('PACIENTE')")
     public ResponseEntity<SolicitudResponse> crear(@Valid @RequestBody SolicitudRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.status(HttpStatus.CREATED).body(solicitudService.crearSolicitud(u.getId(), r)); }
+
+    @PostMapping("/presencial") @PreAuthorize("hasAnyRole('PROFESIONAL','SECRETARIO','ADMIN')")
+    public ResponseEntity<SolicitudResponse> crearPresencial(@Valid @RequestBody SolicitudPresencialRequest r) { return ResponseEntity.status(HttpStatus.CREATED).body(solicitudService.crearSolicitudPresencial(r)); }
 
     @GetMapping
     public ResponseEntity<List<SolicitudResponse>> listar(@AuthenticationPrincipal UserPrincipal u, @RequestParam(required=false) String estado, @RequestParam(required=false) String prioridad) { return ResponseEntity.ok(solicitudService.listarSolicitudes(u.getId(), u.getTipoUsuario(), estado, prioridad)); }

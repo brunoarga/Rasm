@@ -24,7 +24,7 @@ public class PacienteController {
     @GetMapping @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')") public ResponseEntity<List<Paciente>> listar() { return ResponseEntity.ok(repo.findAllWithUsuario()); }
     @GetMapping("/buscar") @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','SECRETARIO')") public ResponseEntity<List<java.util.Map<String, Object>>> buscar(@RequestParam String q) { return ResponseEntity.ok(pacienteService.buscarPacientes(q)); }
     @GetMapping("/{id}") @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')") public ResponseEntity<Paciente> obtener(@PathVariable Long id) { return ResponseEntity.ok(repo.findById(id).orElseThrow()); }
-    @PostMapping @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN')") public ResponseEntity<Paciente> crear(@Valid @RequestBody CrearPacienteRequest r) { return ResponseEntity.status(HttpStatus.CREATED).body(pacienteService.crearPaciente(r)); }
+    @PostMapping @PreAuthorize("hasAnyRole('PROFESIONAL','SECRETARIO','ADMIN')") public ResponseEntity<Paciente> crear(@Valid @RequestBody CrearPacienteRequest r) { return ResponseEntity.status(HttpStatus.CREATED).body(pacienteService.crearPaciente(r)); }
     @PostMapping("/registro-profesional") @PreAuthorize("hasRole('PROFESIONAL')") public ResponseEntity<Paciente> crearPorProfesional(@Valid @RequestBody CrearPacienteRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.status(HttpStatus.CREATED).body(pacienteService.crearPacientePorProfesional(r, u.getId())); }
     @PutMapping("/consentimiento") @PreAuthorize("hasRole('PACIENTE')")
     public ResponseEntity<Map<String, Object>> aceptarConsentimiento(@AuthenticationPrincipal UserPrincipal u) {

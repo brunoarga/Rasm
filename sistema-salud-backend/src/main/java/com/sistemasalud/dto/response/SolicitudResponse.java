@@ -10,7 +10,7 @@ public class SolicitudResponse {
     private Long idProfesional; private String nombreProfesional;
     private Long idCategoria; private String nombreCategoria;
     private Long idObraSocial; private String nombreObraSocial;
-    private String titulo; private String descripcion; private String estado;
+    private String titulo; private String descripcion; private String estado; private String origen;
     private String prioridad; private LocalDateTime fechaCreacion; private LocalDateTime fechaActualizacion;
     private Long idCentroSalud; private String nombreCentroSalud; private String direccionCentroSalud;
     private LocalDateTime fechaTurno; private Integer duracionTurno; private String modalidad;

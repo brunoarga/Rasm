@@ -1,6 +1,7 @@
 package com.sistemasalud.entity;
 
 import com.sistemasalud.enums.EstadoSolicitud;
+import com.sistemasalud.enums.OrigenSolicitud;
 import com.sistemasalud.enums.Prioridad;
 import jakarta.persistence.*;
 import lombok.*;
@@ -21,6 +22,7 @@ public class Solicitud {
     @Column(columnDefinition = "TEXT", nullable = false) private String descripcion;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private EstadoSolicitud estado;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 10) private Prioridad prioridad;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 10) private OrigenSolicitud origen;
     @Column(name = "fecha_creacion", nullable = false, updatable = false) private LocalDateTime fechaCreacion;
     @Column(name = "fecha_actualizacion") private LocalDateTime fechaActualizacion;
     @ManyToOne(fetch = FetchType.LAZY)

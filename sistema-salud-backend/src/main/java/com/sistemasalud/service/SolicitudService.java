@@ -2,6 +2,7 @@ package com.sistemasalud.service;
 
 import com.sistemasalud.dto.request.AsignarTurnoRequest;
 import com.sistemasalud.dto.request.DerivacionRequest;
+import com.sistemasalud.dto.request.SolicitudPresencialRequest;
 import com.sistemasalud.dto.request.SolicitudRequest;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse.ContactoEmergencia;
@@ -43,12 +44,14 @@ public class SolicitudService {
     public SolicitudResponse crearSolicitud(Long idUsuario, SolicitudRequest request) {
         Paciente paciente = pacienteRepository.findByUsuarioId(idUsuario).orElseThrow(() -> new RecursoNoEncontradoException("Paciente no encontrado"));
         if (!Boolean.TRUE.equals(paciente.getConsentimientoOk())) throw new ConsentimientoRequeridoException("Debe aceptar el consentimiento informado");
-        return crearSolicitudCore(paciente, request.getIdCategoria(), request.getTitulo(), request.getDescripcion(),
-                request.getResumenBreve(), request.getEsUrgente(), request.getNivelRiesgo(), request.getAnamnesis());
+        Solicitud solicitud = crearSolicitudEntity(paciente, request.getIdCategoria(), request.getTitulo(), request.getDescripcion(),
+                request.getResumenBreve(), request.getEsUrgente(), request.getNivelRiesgo(), request.getAnamnesis(), OrigenSolicitud.ONLINE);
+        return mapToResponse(solicitud);
     }
 
-    private SolicitudResponse crearSolicitudCore(Paciente paciente, Long idCategoria, String titulo, String descripcion,
-                                                  String resumenBreve, Boolean esUrgente, String nivelRiesgo, String anamnesis) {
+    private Solicitud crearSolicitudEntity(Paciente paciente, Long idCategoria, String titulo, String descripcion,
+                                                  String resumenBreve, Boolean esUrgente, String nivelRiesgo, String anamnesis,
+                                                  OrigenSolicitud origen) {
         CategoriaAyuda categoria = categoriaAyudaRepository.findById(idCategoria).orElseThrow(() -> new RecursoNoEncontradoException("Categoria no encontrada"));
 
         Prioridad prioridad;
@@ -65,11 +68,67 @@ public class SolicitudService {
                 .paciente(paciente).categoria(categoria)
                 .titulo(titulo).descripcion(descripcion)
                 .resumenBreve(resumenBreve).anamnesis(anamnesis)
-                .estado(estadoInicial).prioridad(prioridad)
+                .estado(estadoInicial).prioridad(prioridad).origen(origen)
                 .fechaCreacion(LocalDateTime.now()).fechaActualizacion(LocalDateTime.now())
                 .activa(true).build());
         notificacionService.crearNotificacionParaProfesionales("Nueva solicitud" + (prioridad == Prioridad.URGENTE ? " URGENTE" : ""), paciente.getUsuario().getNombreCompleto() + " ha creado: " + solicitud.getTitulo(), solicitud);
-        return mapToResponse(solicitud);
+        return solicitud;
+    }
+
+    @Transactional
+    public SolicitudResponse crearSolicitudPresencial(SolicitudPresencialRequest request) {
+        Paciente paciente = pacienteRepository.findById(request.getIdPaciente())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Paciente no encontrado"));
+        Solicitud s = crearSolicitudEntity(paciente, request.getIdCategoria(), request.getTitulo(), request.getDescripcion(),
+                request.getResumenBreve(), request.getEsUrgente(), request.getNivelRiesgo(), request.getAnamnesis(), OrigenSolicitud.PRESENCIAL);
+
+        if (request.getIdCentroSalud() != null) {
+            CentroSalud centro = centroSaludRepository.findById(request.getIdCentroSalud())
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado"));
+            s.setCentroSalud(centro);
+        }
+        if (request.getIdProfesional() != null) {
+            Profesional prof = profesionalRepository.findById(request.getIdProfesional())
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Profesional no encontrado"));
+            s.setProfesional(prof);
+        }
+
+        if (request.getFechaHora() != null && s.getProfesional() != null) {
+            LocalDateTime fechaHora = LocalDateTime.parse(request.getFechaHora());
+            int duracion = request.getDuracion() != null ? request.getDuracion() : 30;
+            List<Cita> solapadas = citaRepository.findByProfesionalIdAndFechaHoraBetween(
+                    s.getProfesional().getId(), fechaHora, fechaHora.plusMinutes(duracion));
+            if (!solapadas.isEmpty()) throw new SolicitudInvalidaException("El profesional ya tiene un turno en ese horario");
+
+            ModalidadCita modalidad = request.getModalidad() != null ? ModalidadCita.valueOf(request.getModalidad()) : ModalidadCita.PRESENCIAL;
+            Cita cita = Cita.builder()
+                    .solicitud(s).profesional(s.getProfesional()).centroSalud(s.getCentroSalud())
+                    .fechaHora(fechaHora).duracion(duracion).modalidad(modalidad)
+                    .estado("PROGRAMADA").build();
+            citaRepository.save(cita);
+
+            s.setEstado(EstadoSolicitud.ASIGNADA);
+            s.setFechaTurno(fechaHora); s.setDuracionTurno(duracion);
+            s.setModalidad(modalidad.name());
+        } else if (s.getProfesional() != null) {
+            s.setEstado(EstadoSolicitud.ASIGNADA);
+        }
+
+        s.setFechaActualizacion(LocalDateTime.now());
+        s = solicitudRepository.save(s);
+
+        if (s.getProfesional() != null) {
+            mensajeService.abrirConversacion(s);
+            notificacionService.crearNotificacion(s.getProfesional().getUsuario(), "Paciente presencial asignado",
+                    "Se te ha asignado la solicitud presencial '" + s.getTitulo() + "' de " + paciente.getUsuario().getNombreCompleto() + ".", s);
+        }
+
+        String turnoTexto = s.getFechaTurno() != null
+                ? String.format(" con turno para el %s a las %s", s.getFechaTurno().toLocalDate(), s.getFechaTurno().toLocalTime())
+                : "";
+        notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Solicitud presencial registrada",
+                "Tu solicitud '" + s.getTitulo() + "' fue registrada por el centro de salud" + turnoTexto + ".", s);
+        return mapToResponse(s);
     }
 
     @Transactional
@@ -463,7 +522,7 @@ return centros;
                 .resumenBreve(s.getResumenBreve()).archivoAdjunto(s.getArchivoAdjunto()).anamnesis(s.getAnamnesis())
                 .direccionPaciente(s.getPaciente().getUsuario().getDireccion())
                 .tipoDocumento(s.getPaciente().getTipoDocumento()).numDocumento(s.getPaciente().getNumDocumento())
-                .estado(s.getEstado().name()).prioridad(s.getPrioridad().name())
+                .estado(s.getEstado().name()).origen(s.getOrigen() != null ? s.getOrigen().name() : "ONLINE").prioridad(s.getPrioridad().name())
                 .fechaCreacion(s.getFechaCreacion()).fechaActualizacion(s.getFechaActualizacion())
                 .idCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getId() : null)
                 .nombreCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getNombre() : null)

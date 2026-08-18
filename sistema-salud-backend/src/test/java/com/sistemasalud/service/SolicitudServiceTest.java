@@ -1,10 +1,12 @@
 package com.sistemasalud.service;
 
 import com.sistemasalud.dto.request.DerivacionRequest;
+import com.sistemasalud.dto.request.SolicitudPresencialRequest;
 import com.sistemasalud.dto.request.SolicitudRequest;
 import com.sistemasalud.dto.response.SolicitudResponse;
 import com.sistemasalud.entity.*;
 import com.sistemasalud.enums.EstadoSolicitud;
+import com.sistemasalud.enums.OrigenSolicitud;
 import com.sistemasalud.enums.Prioridad;
 import com.sistemasalud.enums.TipoUsuario;
 import com.sistemasalud.exception.ConsentimientoRequeridoException;
@@ -387,6 +389,94 @@ class SolicitudServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getId()).isEqualTo(1L);
         assertThat(result.get(0).getTitulo()).isEqualTo("Necesito ayuda");
+    }
+
+    @Test
+    void crearSolicitudPresencial_deberiaCrearConOrigenPRESENCIAL() {
+        when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(1L);
+        request.setIdCategoria(1L);
+        request.setTitulo("Consulta presencial");
+        request.setDescripcion("Paciente espontáneo");
+        request.setEsUrgente(false);
+
+        SolicitudResponse response = service.crearSolicitudPresencial(request);
+
+        assertThat(response.getOrigen()).isEqualTo("PRESENCIAL");
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .anyMatch(s -> s.getOrigen() == OrigenSolicitud.PRESENCIAL);
+        verify(notificacionService).crearNotificacion(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
+        verify(mensajeService, never()).abrirConversacion(any(Solicitud.class));
+    }
+
+    @Test
+    void crearSolicitudPresencial_conTurno_deberiaAsignarProfesionalCentroYTurno() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Público").build();
+        when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(centro));
+        when(profesionalRepository.findById(1L)).thenReturn(Optional.of(profesional));
+        when(citaRepository.findByProfesionalIdAndFechaHoraBetween(any(), any(), any())).thenReturn(List.of());
+        when(citaRepository.save(any(Cita.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(1L);
+        request.setIdCategoria(1L);
+        request.setTitulo("Turno presencial");
+        request.setDescripcion("Alta en el centro");
+        request.setEsUrgente(false);
+        request.setIdCentroSalud(5L);
+        request.setIdProfesional(1L);
+        request.setFechaHora("2026-08-20T10:00");
+        request.setDuracion(30);
+        request.setModalidad("PRESENCIAL");
+
+        SolicitudResponse response = service.crearSolicitudPresencial(request);
+
+        assertThat(response.getOrigen()).isEqualTo("PRESENCIAL");
+        assertThat(response.getEstado()).isEqualTo("ASIGNADA");
+        assertThat(response.getIdProfesional()).isEqualTo(1L);
+        assertThat(response.getIdCentroSalud()).isEqualTo(5L);
+        assertThat(response.getFechaTurno()).isEqualTo(LocalDateTime.of(2026, 8, 20, 10, 0));
+        assertThat(response.getDuracionTurno()).isEqualTo(30);
+        verify(citaRepository).save(any(Cita.class));
+        verify(mensajeService).abrirConversacion(any(Solicitud.class));
+        verify(notificacionService, times(2)).crearNotificacion(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void crearSolicitud_online_deberiaCrearConOrigenONLINE() {
+        when(pacienteRepository.findByUsuarioId(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(solicitudRepository.save(any(Solicitud.class))).thenReturn(solicitud);
+
+        SolicitudRequest request = new SolicitudRequest();
+        request.setIdCategoria(1L);
+        request.setTitulo("Necesito ayuda");
+        request.setDescripcion("Me siento mal");
+        request.setEsUrgente(false);
+
+        SolicitudResponse response = service.crearSolicitud(1L, request);
+
+        assertThat(response.getOrigen()).isEqualTo("ONLINE");
+    }
+
+    @Test
+    void crearSolicitudPresencial_noEncontrado_deberiaLanzarExcepcion() {
+        when(pacienteRepository.findById(99L)).thenReturn(Optional.empty());
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(99L);
+
+        assertThatThrownBy(() -> service.crearSolicitudPresencial(request))
+                .isInstanceOf(RecursoNoEncontradoException.class);
     }
 
     @Test
