@@ -5,25 +5,28 @@ import com.sistemasalud.entity.CentroSalud;
 import com.sistemasalud.entity.Cita;
 import com.sistemasalud.entity.Paciente;
 import com.sistemasalud.entity.Solicitud;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Slf4j @Service @RequiredArgsConstructor
+@Slf4j @Service
 public class WebhookService {
 
     private final RestClient restClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${webhook.enabled:false}") private boolean enabled;
     @Value("${webhook.timeout-ms:3000}") private long timeoutMs;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public WebhookService() {
+        this.restClient = RestClient.builder().build();
+    }
 
     public void notificarTurno(Cita cita) {
         if (!enabled) {

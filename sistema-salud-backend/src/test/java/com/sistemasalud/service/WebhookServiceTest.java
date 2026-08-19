@@ -9,7 +9,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestClient;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -29,7 +28,7 @@ class WebhookServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new WebhookService(RestClient.builder().build());
+        service = new WebhookService();
         ReflectionTestUtils.setField(service, "enabled", false);
 
         Usuario usuario = Usuario.builder().id(1L).nombreCompleto("Maria Lopez")
