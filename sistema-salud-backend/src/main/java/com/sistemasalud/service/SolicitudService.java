@@ -5,6 +5,7 @@ import com.sistemasalud.dto.request.DerivacionRequest;
 import com.sistemasalud.dto.request.SolicitudPresencialRequest;
 import com.sistemasalud.dto.request.SolicitudRequest;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse;
+import com.sistemasalud.dto.response.PerfilSecretarioResponse;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse.ContactoEmergencia;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse.DatosPaciente;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse.DatosSolicitud;
@@ -39,6 +40,11 @@ public class SolicitudService {
     private final RegistroSintomatologiaRepository registroSintomatologiaRepository;
     private final NotificacionService notificacionService;
     private final MensajeService mensajeService;
+    private final SecretarioRepository secretarioRepository;
+    private final BitacoraSolicitudRepository bitacoraRepository;
+    private final EmailService emailService;
+    private final WhatsAppService whatsAppService;
+    private final UsuarioRepository usuarioRepository;
 
     @Transactional
     public SolicitudResponse crearSolicitud(Long idUsuario, SolicitudRequest request) {
@@ -76,11 +82,17 @@ public class SolicitudService {
     }
 
     @Transactional
-    public SolicitudResponse crearSolicitudPresencial(SolicitudPresencialRequest request) {
+    public SolicitudResponse crearSolicitudPresencial(SolicitudPresencialRequest request, String tipoUsuario) {
         Paciente paciente = pacienteRepository.findById(request.getIdPaciente())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Paciente no encontrado"));
+
+        boolean esSecretario = "SECRETARIO".equals(tipoUsuario);
+        if (esSecretario && (request.getIdCentroSalud() != null || request.getIdProfesional() != null || request.getFechaHora() != null))
+            throw new SolicitudInvalidaException("La secretaría solo registra la solicitud; la derivación a un centro se realiza desde la bandeja");
+
         Solicitud s = crearSolicitudEntity(paciente, request.getIdCategoria(), request.getTitulo(), request.getDescripcion(),
                 request.getResumenBreve(), request.getEsUrgente(), request.getNivelRiesgo(), request.getAnamnesis(), OrigenSolicitud.PRESENCIAL);
+        registrarBitacora(s, null, s.getEstado(), s.getEstado(), "Solicitud presencial registrada");
 
         if (request.getIdCentroSalud() != null) {
             CentroSalud centro = centroSaludRepository.findById(request.getIdCentroSalud())
@@ -163,7 +175,13 @@ public class SolicitudService {
             Profesional p = profesionalRepository.findByUsuarioId(idUsuario).orElseThrow(() -> new RecursoNoEncontradoException("Profesional no encontrado"));
             solicitudes = solicitudRepository.findByProfesionalIdOrderByFechaCreacionDesc(p.getId());
         } else if ("SECRETARIO".equals(tipoUsuario)) {
-            solicitudes = solicitudRepository.findAll();
+            Secretario sec = secretarioRepository.findByUsuarioId(idUsuario).orElse(null);
+            if (sec != null && sec.getCentroSalud() != null) {
+                List<EstadoSolicitud> estadosCentro = List.of(EstadoSolicitud.RECIBIDA, EstadoSolicitud.ASIGNADA, EstadoSolicitud.EN_PROCESO, EstadoSolicitud.DERIVADA, EstadoSolicitud.COMPLETADA);
+                solicitudes = solicitudRepository.findByCentroSaludIdAndEstadoInOrderByFechaCreacionDesc(sec.getCentroSalud().getId(), estadosCentro);
+            } else {
+                solicitudes = solicitudRepository.findAll();
+            }
         } else { solicitudes = solicitudRepository.findAll(); }
         return solicitudes.stream().filter(s -> estado == null || s.getEstado().name().equals(estado)).filter(s -> prioridad == null || s.getPrioridad().name().equals(prioridad)).map(this::mapToResponse).toList();
     }
@@ -181,9 +199,17 @@ public class SolicitudService {
             todas = solicitudRepository.findByProfesionalIdOrderByFechaCreacionDesc(p.getId(), pageable).getContent();
             total = solicitudRepository.findByProfesionalIdOrderByFechaCreacionDesc(p.getId()).size();
         } else if ("SECRETARIO".equals(tipoUsuario)) {
-            Page<Solicitud> page = solicitudRepository.findAll(pageable);
-            todas = page.getContent();
-            total = page.getTotalElements();
+            Secretario sec = secretarioRepository.findByUsuarioId(idUsuario).orElse(null);
+            if (sec != null && sec.getCentroSalud() != null) {
+                List<EstadoSolicitud> estadosCentro = List.of(EstadoSolicitud.RECIBIDA, EstadoSolicitud.ASIGNADA, EstadoSolicitud.EN_PROCESO, EstadoSolicitud.DERIVADA, EstadoSolicitud.COMPLETADA);
+                Page<Solicitud> page = solicitudRepository.findByCentroSaludIdAndEstadoInOrderByFechaCreacionDesc(sec.getCentroSalud().getId(), estadosCentro, pageable);
+                todas = page.getContent();
+                total = page.getTotalElements();
+            } else {
+                Page<Solicitud> page = solicitudRepository.findAll(pageable);
+                todas = page.getContent();
+                total = page.getTotalElements();
+            }
         } else {
             Page<Solicitud> page = solicitudRepository.findAll(pageable);
             todas = page.getContent();
@@ -208,7 +234,7 @@ public class SolicitudService {
         Solicitud solicitud = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
         EstadoSolicitud actual = solicitud.getEstado();
         EstadoSolicitud destino = EstadoSolicitud.valueOf(nuevoEstado);
-        boolean valida = switch (actual) { case CREADA -> destino == EstadoSolicitud.REVISADA || destino == EstadoSolicitud.ASIGNADA; case REVISADA -> destino == EstadoSolicitud.ASIGNADA; case ASIGNADA -> destino == EstadoSolicitud.EN_PROCESO || destino == EstadoSolicitud.DERIVADA; case EN_PROCESO -> destino == EstadoSolicitud.DERIVADA || destino == EstadoSolicitud.COMPLETADA; case DERIVADA -> destino == EstadoSolicitud.ASIGNADA || destino == EstadoSolicitud.COMPLETADA; case COMPLETADA, CANCELADA -> false; };
+        boolean valida = switch (actual) { case CREADA -> destino == EstadoSolicitud.REVISADA || destino == EstadoSolicitud.ASIGNADA; case REVISADA -> destino == EstadoSolicitud.ASIGNADA; case RECIBIDA -> destino == EstadoSolicitud.ASIGNADA || destino == EstadoSolicitud.DERIVADA || destino == EstadoSolicitud.COMPLETADA; case ASIGNADA -> destino == EstadoSolicitud.EN_PROCESO || destino == EstadoSolicitud.DERIVADA; case EN_PROCESO -> destino == EstadoSolicitud.DERIVADA || destino == EstadoSolicitud.COMPLETADA; case DERIVADA -> destino == EstadoSolicitud.ASIGNADA || destino == EstadoSolicitud.COMPLETADA; case COMPLETADA, CANCELADA -> false; };
         if (!valida) throw new EstadoInvalidoException("No se puede cambiar de " + actual + " a " + destino);
         if (destino == EstadoSolicitud.ASIGNADA && solicitud.getProfesional() == null)
             profesionalRepository.findByUsuarioId(idUsuario).ifPresent(solicitud::setProfesional);
@@ -309,13 +335,60 @@ public class SolicitudService {
     }
 
     @Transactional
-    public SolicitudResponse derivarACentro(Long idSolicitud, Long idCentroSalud) {
+    public SolicitudResponse derivarACentro(Long idSolicitud, Long idCentroSalud, Long idUsuario) {
         Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
         CentroSalud c = centroSaludRepository.findById(idCentroSalud).orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado"));
-        s.setCentroSalud(c); s.setEstado(EstadoSolicitud.DERIVADA); s.setFechaActualizacion(LocalDateTime.now());
+
+        EstadoSolicitud desde = s.getEstado();
+        s.setCentroSalud(c);
+        s.setEstado(EstadoSolicitud.RECIBIDA);
+        if (s.getFolio() == null || s.getFolio().isBlank()) s.setFolio(generarFolio(s));
+        s.setFechaActualizacion(LocalDateTime.now());
         s = solicitudRepository.save(s);
-        notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Derivacion a centro", "Tu solicitud fue derivada a: " + c.getNombre(), s);
+
+        Usuario usuarioCentral = idUsuario != null ? usuarioRepository.findById(idUsuario).orElse(null) : null;
+        registrarBitacora(s, usuarioCentral, desde, EstadoSolicitud.RECIBIDA,
+                "La secretaría derivó la solicitud al centro " + c.getNombre() + " (folio " + s.getFolio() + ")");
+
+        alertaInstitucionalAlCentro(c, s);
+        notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Solicitud derivada a un centro",
+                "Tu solicitud '" + s.getTitulo() + "' fue derivada al centro " + c.getNombre()
+                        + " con folio " + s.getFolio() + ". El centro te contactará para asignarte el turno.", s);
         return mapToResponse(s);
+    }
+
+    private String generarFolio(Solicitud s) {
+        return "NSL-" + s.getFechaCreacion().getYear() + "-" + s.getId();
+    }
+
+    private void alertaInstitucionalAlCentro(CentroSalud c, Solicitud s) {
+        String folio = s.getFolio();
+        String categoria = s.getCategoria() != null ? s.getCategoria().getNombre() : "";
+        String mensaje = "Derivación recibida - Folio " + folio + " (categoría: " + categoria + ")";
+        String cuerpoReferente = "Recibiste una nueva derivación en " + c.getNombre()
+                + " con folio " + folio + ". Ingresá a la plataforma para aceptarla y asignar el turno al paciente.";
+
+        List<Secretario> referentes = secretarioRepository.findByCentroSaludId(c.getId());
+        for (Secretario sec : referentes) {
+            if (sec.getUsuario() != null)
+                notificacionService.notificarMensaje(sec.getUsuario(), "Nueva derivación recibida", cuerpoReferente, s);
+        }
+
+        if (c.getEmailInstitucional() != null && !c.getEmailInstitucional().isBlank())
+            emailService.enviarEmailNotificacion(c.getEmailInstitucional(), mensaje, cuerpoReferente);
+
+        if (c.getTelefonoInstitucional() != null && !c.getTelefonoInstitucional().isBlank())
+            whatsAppService.enviarPlantilla(c.getTelefonoInstitucional(), "nueva_derivacion", List.of(folio, categoria));
+    }
+
+    private void registrarBitacora(Solicitud s, Usuario usuario, EstadoSolicitud desde, EstadoSolicitud hasta, String detalle) {
+        bitacoraRepository.save(BitacoraSolicitud.builder()
+                .solicitud(s).usuario(usuario)
+                .estadoDesde(desde != null ? desde.name() : null)
+                .estadoHasta(hasta != null ? hasta.name() : null)
+                .detalle(detalle)
+                .fechaCreacion(LocalDateTime.now())
+                .build());
     }
 
     @Transactional
@@ -340,10 +413,12 @@ return centros;
     }
 
     @Transactional
-    public SolicitudResponse asignarTurno(Long idSolicitud, AsignarTurnoRequest r) {
+    public SolicitudResponse asignarTurno(Long idSolicitud, AsignarTurnoRequest r, Long idUsuario, String tipoUsuario) {
         Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
+        verificarAccesoReferente(s, idUsuario, tipoUsuario);
         Profesional prof = profesionalRepository.findById(r.getIdProfesional()).orElseThrow(() -> new RecursoNoEncontradoException("Profesional no encontrado"));
-        CentroSalud centro = r.getIdCentroSalud() != null ? centroSaludRepository.findById(r.getIdCentroSalud()).orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado")) : null;
+        CentroSalud centro = s.getCentroSalud() != null ? s.getCentroSalud()
+                : (r.getIdCentroSalud() != null ? centroSaludRepository.findById(r.getIdCentroSalud()).orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado")) : null);
         LocalDateTime fechaHora = LocalDateTime.parse(r.getFechaHora());
         int duracion = r.getDuracion() != null ? r.getDuracion() : 15;
 
@@ -359,6 +434,7 @@ return centros;
                 .estado("PROGRAMADA").build();
         citaRepository.save(cita);
 
+        EstadoSolicitud desde = s.getEstado();
         s.setProfesional(prof); s.setCentroSalud(centro);
         s.setEstado(EstadoSolicitud.ASIGNADA);
         s.setFechaTurno(fechaHora); s.setDuracionTurno(duracion);
@@ -366,15 +442,40 @@ return centros;
         s.setFechaActualizacion(LocalDateTime.now());
         s = solicitudRepository.save(s);
 
-        String msgPaciente = String.format("Turno asignado: %s, %s, %s, %s",
-                prof.getUsuario().getNombreCompleto(),
+        Usuario usuarioAccion = idUsuario != null ? usuarioRepository.findById(idUsuario).orElse(null) : null;
+        registrarBitacora(s, usuarioAccion, desde, EstadoSolicitud.ASIGNADA,
+                "El referente asignó el turno " + fechaHora + " con " + (prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "profesional"));
+
+        String msgPaciente = String.format("Tu turno fue confirmado:\n\nProfesional: %s\nFecha: %s\nHora: %s\nCentro: %s\nDirección: %s\nModalidad: %s\nDuración: %d minutos\n\nConcurre con tu documento de identidad y credencial de hospital al menos 15 minutos antes.",
+                prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "Asignado",
                 fechaHora.toLocalDate().toString(),
                 fechaHora.toLocalTime().toString(),
-                centro != null ? centro.getNombre() : "Sin centro");
-        notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Turno asignado", msgPaciente, s);
+                centro != null ? centro.getNombre() : "Sin centro",
+                centro != null && centro.getDireccion() != null ? centro.getDireccion() : "—",
+                modalidad.name(),
+                duracion);
+        notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Turno confirmado", msgPaciente, s);
+        if (s.getPaciente().getUsuario().getTelefono() != null)
+            whatsAppService.enviarPlantilla(s.getPaciente().getUsuario().getTelefono(), "turno_confirmado",
+                    List.of(prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "Asignado",
+                            fechaHora.toLocalDate().toString(),
+                            fechaHora.toLocalTime().toString(),
+                            centro != null ? centro.getNombre() : "Sin centro"));
         mensajeService.abrirConversacion(s);
 
         return mapToResponse(s);
+    }
+
+    private void verificarAccesoReferente(Solicitud s, Long idUsuario, String tipoUsuario) {
+        if ("ADMIN".equals(tipoUsuario)) return;
+        if (!"SECRETARIO".equals(tipoUsuario))
+            throw new AccesoDenegadoException("Solo el referente del centro puede asignar el turno");
+        Secretario sec = secretarioRepository.findByUsuarioId(idUsuario)
+                .orElseThrow(() -> new AccesoDenegadoException("No tiene acceso a esta solicitud"));
+        if (sec.getCentroSalud() == null)
+            throw new AccesoDenegadoException("Solo el referente del centro puede asignar el turno");
+        if (s.getCentroSalud() == null || !s.getCentroSalud().getId().equals(sec.getCentroSalud().getId()))
+            throw new AccesoDenegadoException("Solo el referente del centro puede asignar el turno a esta solicitud");
     }
 
     @Transactional(readOnly = true)
@@ -491,7 +592,33 @@ return centros;
             boolean sinAsignar = s.getProfesional() == null;
             if (!asignada && !sinAsignar)
                 throw new AccesoDenegadoException("Solo el profesional asignado puede ver esta solicitud");
+        } else if ("SECRETARIO".equals(tipoUsuario)) {
+            Secretario sec = secretarioRepository.findByUsuarioId(idUsuario).orElse(null);
+            if (sec != null && sec.getCentroSalud() != null) {
+                boolean delCentro = s.getCentroSalud() != null && s.getCentroSalud().getId().equals(sec.getCentroSalud().getId());
+                boolean centralPendiente = !delCentro && s.getCentroSalud() == null
+                        && (s.getEstado() == EstadoSolicitud.CREADA || s.getEstado() == EstadoSolicitud.REVISADA);
+                if (!delCentro && !centralPendiente)
+                    throw new AccesoDenegadoException("No tiene acceso a esta solicitud");
+            }
         }
+    }
+
+    @Transactional(readOnly = true)
+    public PerfilSecretarioResponse perfilSecretario(Long idUsuario) {
+        Usuario u = usuarioRepository.findById(idUsuario).orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado"));
+        Secretario sec = secretarioRepository.findByUsuarioId(idUsuario).orElse(null);
+        Long idCentro = sec != null && sec.getCentroSalud() != null ? sec.getCentroSalud().getId() : null;
+        String nombreCentro = sec != null && sec.getCentroSalud() != null ? sec.getCentroSalud().getNombre() : null;
+        return PerfilSecretarioResponse.builder()
+                .id(u.getId())
+                .idSecretario(sec != null ? sec.getId() : null)
+                .nombreCompleto(u.getNombreCompleto())
+                .email(u.getEmail())
+                .idCentroSalud(idCentro)
+                .nombreCentroSalud(nombreCentro)
+                .referente(idCentro != null)
+                .build();
     }
 
     private String mapearCategoriaATipoPractica(String nombreCategoria) {
@@ -511,7 +638,7 @@ return centros;
         if (s.getProfesional() != null) s.getProfesional().getUsuario().getNombreCompleto();
         if (s.getCentroSalud() != null) s.getCentroSalud().getNombre();
         return SolicitudResponse.builder()
-                .id(s.getId()).idPaciente(s.getPaciente().getId())
+                .id(s.getId()).folio(s.getFolio()).idPaciente(s.getPaciente().getId())
                 .nombrePaciente(s.getPaciente().getUsuario().getNombreCompleto())
                 .idProfesional(s.getProfesional() != null ? s.getProfesional().getId() : null)
                 .nombreProfesional(s.getProfesional() != null ? s.getProfesional().getUsuario().getNombreCompleto() : null)

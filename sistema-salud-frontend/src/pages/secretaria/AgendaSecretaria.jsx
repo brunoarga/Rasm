@@ -7,6 +7,7 @@ import { parsearFechaLocal, esMismoDia, formatearFecha } from '../../utils/fecha
 const ESTADO_BADGE = {
   CREADA: 'bg-slate-100 text-slate-600',
   REVISADA: 'bg-amber-100 text-amber-700',
+  RECIBIDA: 'bg-sky-100 text-sky-700',
   ASIGNADA: 'bg-emerald-100 text-emerald-700',
   EN_PROCESO: 'bg-blue-100 text-blue-700',
   DERIVADA: 'bg-violet-100 text-violet-700',

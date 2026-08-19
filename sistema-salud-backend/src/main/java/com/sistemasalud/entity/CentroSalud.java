@@ -16,6 +16,8 @@ public class CentroSalud {
     @Column(precision = 10) private Double latitud;
     @Column(precision = 10) private Double longitud;
     @Column(length = 20) private String telefono;
+    @Column(name = "email_institucional", length = 150) private String emailInstitucional;
+    @Column(name = "telefono_institucional", length = 20) private String telefonoInstitucional;
     @Enumerated(EnumType.STRING) @Column(name = "tipo_centro", length = 20) private TipoCentro tipoCentro;
     @Column(name = "es_publico") private Boolean esPublico = true;
     @Column(name = "tiene_emergencias") private Boolean tieneEmergencias = false;

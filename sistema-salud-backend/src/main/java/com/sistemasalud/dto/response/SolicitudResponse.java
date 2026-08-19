@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 @Data @NoArgsConstructor @AllArgsConstructor @Builder
 public class SolicitudResponse {
-    private Long id; private Long idPaciente; private String nombrePaciente;
+    private Long id; private String folio; private Long idPaciente; private String nombrePaciente;
     private Long idProfesional; private String nombreProfesional;
     private Long idCategoria; private String nombreCategoria;
     private Long idObraSocial; private String nombreObraSocial;

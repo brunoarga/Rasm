@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 public class Solicitud {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_solicitud") private Long id;
+    @Column(length = 30) private String folio;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_paciente", nullable = false) private Paciente paciente;
     @ManyToOne(fetch = FetchType.LAZY)

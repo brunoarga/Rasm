@@ -21,6 +21,8 @@ public class UsuarioAdminResponse {
     private Long idPaciente;
     private Long idProfesional;
     private Long idSecretario;
+    private Long idCentroSalud;
+    private String nombreCentroSalud;
 
     private String tipoDocumento;
     private String numDocumento;

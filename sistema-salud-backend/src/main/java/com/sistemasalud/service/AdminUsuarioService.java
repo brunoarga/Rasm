@@ -1,11 +1,13 @@
 package com.sistemasalud.service;
 
 import com.sistemasalud.dto.response.UsuarioAdminResponse;
+import com.sistemasalud.entity.CentroSalud;
 import com.sistemasalud.entity.Paciente;
 import com.sistemasalud.entity.Profesional;
 import com.sistemasalud.entity.Secretario;
 import com.sistemasalud.entity.Usuario;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
+import com.sistemasalud.repository.CentroSaludRepository;
 import com.sistemasalud.repository.PacienteRepository;
 import com.sistemasalud.repository.ProfesionalRepository;
 import com.sistemasalud.repository.SecretarioRepository;
@@ -27,6 +29,7 @@ public class AdminUsuarioService {
     private final PacienteRepository pacienteRepository;
     private final ProfesionalRepository profesionalRepository;
     private final SecretarioRepository secretarioRepository;
+    private final CentroSaludRepository centroSaludRepository;
     private final PasswordEncoder passwordEncoder;
     private final NotificacionService notificacionService;
 
@@ -67,6 +70,20 @@ public class AdminUsuarioService {
         usuarioRepository.save(usuario);
     }
 
+    @Transactional
+    public void asignarCentroSecretario(Long idUsuario, Long idCentroSalud) {
+        Secretario secretario = secretarioRepository.findByUsuarioId(idUsuario)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario no es secretario de un centro"));
+        if (idCentroSalud == null) {
+            secretario.setCentroSalud(null);
+        } else {
+            CentroSalud centro = centroSaludRepository.findById(idCentroSalud)
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Centro de salud no encontrado con ID: " + idCentroSalud));
+            secretario.setCentroSalud(centro);
+        }
+        secretarioRepository.save(secretario);
+    }
+
     private UsuarioAdminResponse toResponse(Usuario u, Paciente paciente, Profesional profesional, Secretario secretario) {
         UsuarioAdminResponse.UsuarioAdminResponseBuilder b = UsuarioAdminResponse.builder()
                 .id(u.getId())
@@ -86,7 +103,13 @@ public class AdminUsuarioService {
                     .consentimientoOk(paciente.getConsentimientoOk());
         }
         if (profesional != null) b.idProfesional(profesional.getId());
-        if (secretario != null) b.idSecretario(secretario.getId());
+        if (secretario != null) {
+            b.idSecretario(secretario.getId());
+            if (secretario.getCentroSalud() != null) {
+                b.idCentroSalud(secretario.getCentroSalud().getId());
+                b.nombreCentroSalud(secretario.getCentroSalud().getNombre());
+            }
+        }
         return b.build();
     }
 }

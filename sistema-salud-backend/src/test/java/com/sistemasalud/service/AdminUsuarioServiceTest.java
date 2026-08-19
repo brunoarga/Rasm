@@ -8,6 +8,7 @@ import com.sistemasalud.entity.Usuario;
 import com.sistemasalud.enums.TipoProfesional;
 import com.sistemasalud.enums.TipoUsuario;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
+import com.sistemasalud.repository.CentroSaludRepository;
 import com.sistemasalud.repository.PacienteRepository;
 import com.sistemasalud.repository.ProfesionalRepository;
 import com.sistemasalud.repository.SecretarioRepository;
@@ -33,6 +34,7 @@ class AdminUsuarioServiceTest {
     @Mock private PacienteRepository pacienteRepository;
     @Mock private ProfesionalRepository profesionalRepository;
     @Mock private SecretarioRepository secretarioRepository;
+    @Mock private CentroSaludRepository centroSaludRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private NotificacionService notificacionService;
 
@@ -43,7 +45,7 @@ class AdminUsuarioServiceTest {
     @BeforeEach
     void setUp() {
         service = new AdminUsuarioService(usuarioRepository, pacienteRepository, profesionalRepository,
-                secretarioRepository, passwordEncoder, notificacionService);
+                secretarioRepository, centroSaludRepository, passwordEncoder, notificacionService);
         pacienteUsuario = Usuario.builder()
                 .id(1L).nombreCompleto("Ana Pérez").email("ana@salud.com")
                 .password("hash").tipoUsuario(TipoUsuario.PACIENTE)

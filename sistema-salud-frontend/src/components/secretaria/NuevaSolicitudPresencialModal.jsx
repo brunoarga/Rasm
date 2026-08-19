@@ -5,8 +5,6 @@ import { toast } from 'react-toastify';
 
 export default function NuevaSolicitudPresencialModal({ onClose, onCreated }) {
   const [cats, setCats] = useState([]);
-  const [centros, setCentros] = useState([]);
-  const [profesionales, setProfesionales] = useState([]);
 
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
@@ -19,14 +17,12 @@ export default function NuevaSolicitudPresencialModal({ onClose, onCreated }) {
 
   const [sol, setSol] = useState({
     idCategoria: '', titulo: '', descripcion: '', esUrgente: false,
-    idCentroSalud: '', idProfesional: '', fecha: '', hora: '', duracion: 30, modalidad: 'PRESENCIAL',
   });
 
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     api.get('/categorias').then(r => setCats(r.data || [])).catch(() => {});
-    api.get('/centros').then(r => setCentros(r.data || [])).catch(() => {});
   }, []);
 
   const handleBuscar = async () => {
@@ -63,13 +59,6 @@ export default function NuevaSolicitudPresencialModal({ onClose, onCreated }) {
     }
   };
 
-  useEffect(() => {
-    if (!sol.idCentroSalud) { setProfesionales([]); setSol(s => ({ ...s, idProfesional: '' })); return; }
-    api.get(`/profesionales/centro/${sol.idCentroSalud}`)
-      .then(r => setProfesionales(r.data || []))
-      .catch(() => setProfesionales([]));
-  }, [sol.idCentroSalud]);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!pacienteSel) { toast.warning('Seleccioná o creá un paciente'); return; }
@@ -78,18 +67,12 @@ export default function NuevaSolicitudPresencialModal({ onClose, onCreated }) {
 
     setEnviando(true);
     try {
-      const fechaHora = sol.fecha && sol.hora ? `${sol.fecha}T${sol.hora}` : null;
       const payload = {
         idPaciente: pacienteSel.idPaciente,
         idCategoria: parseInt(sol.idCategoria, 10),
         titulo: sol.titulo.trim(),
         descripcion: sol.descripcion.trim(),
         esUrgente: sol.esUrgente,
-        idCentroSalud: sol.idCentroSalud ? parseInt(sol.idCentroSalud, 10) : null,
-        idProfesional: sol.idProfesional ? parseInt(sol.idProfesional, 10) : null,
-        fechaHora,
-        duracion: sol.duracion,
-        modalidad: sol.modalidad,
       };
       await api.post('/solicitudes/presencial', payload);
       toast.success('Solicitud presencial registrada');
@@ -197,47 +180,9 @@ export default function NuevaSolicitudPresencialModal({ onClose, onCreated }) {
             </div>
           </div>
 
-          {/* Derivación y turno */}
-          <div>
-            <p className="text-xs font-semibold mb-2" style={{ color: '#7C7F85', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Derivación y turno (opcional)</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <select value={sol.idCentroSalud} onChange={e => setSol({ ...sol, idCentroSalud: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
-                  <option value="">Centro de salud</option>
-                  {centros.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <select value={sol.idProfesional} onChange={e => setSol({ ...sol, idProfesional: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
-                  <option value="">Profesional</option>
-                  {profesionales.map(p => (
-                    <option key={p.id} value={p.id}>{p.usuario?.nombreCompleto} {p.usuario?.especialidad ? `· ${p.usuario.especialidad}` : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-2">
-                <input type="date" value={sol.fecha} onChange={e => setSol({ ...sol, fecha: e.target.value })}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }} />
-                <input type="time" value={sol.hora} onChange={e => setSol({ ...sol, hora: e.target.value })}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }} />
-              </div>
-              <div className="flex gap-2">
-                <select value={sol.duracion} onChange={e => setSol({ ...sol, duracion: parseInt(e.target.value, 10) })}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
-                  <option value={30}>30 min</option>
-                  <option value={45}>45 min</option>
-                  <option value={60}>60 min</option>
-                </select>
-                <select value={sol.modalidad} onChange={e => setSol({ ...sol, modalidad: e.target.value })}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border text-sm outline-none" style={{ borderColor: '#E8E4DF' }}>
-                  <option value="PRESENCIAL">Presencial</option>
-                  <option value="VIRTUAL">Virtual</option>
-                </select>
-              </div>
-            </div>
-          </div>
+          <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+            Luego de registrar la solicitud se la derivará a un centro de salud disponible, que confirmará el turno del paciente.
+          </p>
 
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose}

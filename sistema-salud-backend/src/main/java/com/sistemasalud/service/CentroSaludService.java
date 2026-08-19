@@ -1,9 +1,11 @@
 package com.sistemasalud.service;
 
 import com.sistemasalud.dto.request.CentroSaludRequest;
+import com.sistemasalud.dto.request.ContactoInstitucionalRequest;
 import com.sistemasalud.entity.CentroObraSocialPractica;
 import com.sistemasalud.entity.CentroSalud;
 import com.sistemasalud.enums.TipoPractica;
+import com.sistemasalud.exception.RecursoNoEncontradoException;
 import com.sistemasalud.repository.CentroObraSocialPracticaRepository;
 import com.sistemasalud.repository.CentroSaludRepository;
 import com.sistemasalud.util.GeoUtils;
@@ -19,6 +21,15 @@ public class CentroSaludService {
     private final CentroObraSocialPracticaRepository centroObraSocialPracticaRepository;
 
     public List<CentroSalud> listarCentros() { return centroSaludRepository.findByActivoTrue(); }
+
+    @Transactional
+    public CentroSalud actualizarContactoInstitucional(Long idCentro, ContactoInstitucionalRequest r) {
+        CentroSalud c = centroSaludRepository.findById(idCentro)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado con ID: " + idCentro));
+        c.setEmailInstitucional(r.getEmailInstitucional());
+        c.setTelefonoInstitucional(r.getTelefonoInstitucional());
+        return centroSaludRepository.save(c);
+    }
 
     @Transactional
     public CentroSalud crearCentro(CentroSaludRequest r) {

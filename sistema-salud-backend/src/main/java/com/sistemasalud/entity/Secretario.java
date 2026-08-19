@@ -13,4 +13,8 @@ public class Secretario {
     @JoinColumn(name = "id_usuario", nullable = false, unique = true)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "password"})
     private Usuario usuario;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_centro_salud")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private CentroSalud centroSalud;
 }

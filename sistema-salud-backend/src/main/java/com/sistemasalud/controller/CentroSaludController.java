@@ -1,6 +1,7 @@
 package com.sistemasalud.controller;
 
 import com.sistemasalud.dto.request.CentroSaludRequest;
+import com.sistemasalud.dto.request.ContactoInstitucionalRequest;
 import com.sistemasalud.entity.CentroSalud;
 import com.sistemasalud.service.CentroSaludService;
 import jakarta.validation.Valid;
@@ -17,6 +18,8 @@ public class CentroSaludController {
     @GetMapping public ResponseEntity<List<CentroSalud>> listar() { return ResponseEntity.ok(centroSaludService.listarCentros()); }
     @PostMapping @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CentroSalud> crear(@Valid @RequestBody CentroSaludRequest r) { return ResponseEntity.status(HttpStatus.CREATED).body(centroSaludService.crearCentro(r)); }
+    @PutMapping("/{id}/contacto-institucional") @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CentroSalud> contactoInstitucional(@PathVariable Long id, @Valid @RequestBody ContactoInstitucionalRequest r) { return ResponseEntity.ok(centroSaludService.actualizarContactoInstitucional(id, r)); }
     @GetMapping("/cercanos")
     public ResponseEntity<List<CentroSalud>> cercanos(@RequestParam Double lat, @RequestParam Double lon, @RequestParam(defaultValue="50") Double radio, @RequestParam(required=false) Long idObraSocial, @RequestParam(required=false) String tipoPractica) { return ResponseEntity.ok(centroSaludService.buscarCercanos(lat, lon, radio, idObraSocial, tipoPractica)); }
 }
