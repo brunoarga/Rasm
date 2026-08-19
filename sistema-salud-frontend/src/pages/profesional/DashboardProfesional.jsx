@@ -637,7 +637,7 @@ export default function DashboardProfesional() {
                       {guardando ? <><Loader2 className="w-4 h-4 animate-spin" /> Guardando…</>
                         : <><FileText className="w-4 h-4" /> Guardar y Finalizar Consulta</>}
                     </button>
-                    <button onClick={() => navigate(`/profesional/solicitudes/${selCita.idSolicitud}`)}
+                    <button onClick={() => navigate(`/profesional/derivar/${selCita.idSolicitud}`)}
                       className="flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all"
                       style={{ color: '#C44536', backgroundColor: '#FEF6F4' }}>
                       <Send className="w-4 h-4" /> Solicitar Re-derivación
@@ -678,7 +678,7 @@ export default function DashboardProfesional() {
         </div>
       </div>
 
-      {registrarModal && <RegistrarPacienteModal onClose={() => setRegistrarModal(false)} centroSaludId={perfil.centroActual?.id} />}
+      {registrarModal && <RegistrarPacienteModal onClose={() => setRegistrarModal(false)} centroSaludId={perfil.centroActual?.id} profesionalId={perfil.id} />}
     </div>
   );
 }

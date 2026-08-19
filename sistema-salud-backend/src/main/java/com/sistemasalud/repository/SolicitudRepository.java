@@ -20,4 +20,5 @@ public interface SolicitudRepository extends JpaRepository<Solicitud, Long> {
     long countByPrioridad(Prioridad prioridad);
     List<Solicitud> findByCentroSaludIdOrderByFechaCreacionDesc(Long centroSaludId);
     List<Solicitud> findByCentroSaludIdAndEstadoInOrderByFechaCreacionDesc(Long centroSaludId, Collection<EstadoSolicitud> estados);
+    Page<Solicitud> findByCentroSaludIdAndEstadoInOrderByFechaCreacionDesc(Long centroSaludId, Collection<EstadoSolicitud> estados, Pageable pageable);
 }

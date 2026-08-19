@@ -12,7 +12,7 @@ import {
   Moon, Brain, Heart,
   Phone, Save, Trash2,
   Smile, Meh, Frown, Camera, Mail, BadgeCheck, BookOpen,
-  PhoneCall, Activity, MessageSquare
+  PhoneCall, Activity, MessageSquare, QrCode
 } from 'lucide-react';
 const optsFecha = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
 const optsHora = { hour: '2-digit', minute: '2-digit' };
@@ -215,6 +215,13 @@ function TurnoCard({ turno, compact }) {
             <MapPin className="w-3.5 h-3.5" />
             Ubicación
           </a>
+        )}
+        {turno.codigoPase && (
+          <button onClick={() => navigate(`/pase/${turno.codigoPase}`)}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-medico px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors">
+            <QrCode className="w-3.5 h-3.5" />
+            Pase de guardia
+          </button>
         )}
       </div>
     </div>

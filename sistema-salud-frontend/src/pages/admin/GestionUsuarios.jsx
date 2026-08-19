@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../services/api';
 import { formatearFecha } from '../../utils/fechas';
-import { Search, KeyRound, UserX, UserCheck, RefreshCw, Loader2, Users, Inbox } from 'lucide-react';
+import { Search, KeyRound, UserX, UserCheck, RefreshCw, Loader2, Users, Inbox, Building2 } from 'lucide-react';
 import ResetPasswordModal from '../../components/admin/ResetPasswordModal';
 import ConfirmarEstadoModal from '../../components/admin/ConfirmarEstadoModal';
+import AsignarCentroModal from '../../components/admin/AsignarCentroModal';
 
 const ROL_LABEL = {
   PACIENTE: 'Paciente',
@@ -29,17 +30,20 @@ function detalleUsuario(u) {
   if (u.tipoUsuario === 'PROFESIONAL') {
     return [u.tipoProfesional, u.especialidad].filter(Boolean).join(' · ') || 'Profesional';
   }
-  if (u.tipoUsuario === 'SECRETARIO') return 'Personal de Secretaría';
+  if (u.tipoUsuario === 'SECRETARIO')
+    return u.nombreCentroSalud ? `Referente · ${u.nombreCentroSalud}` : 'Personal sin centro asignado';
   return 'Administrador';
 }
 
 export default function GestionUsuarios() {
   const [usuarios, setUsuarios] = useState(null);
+  const [centros, setCentros] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [rol, setRol] = useState('TODOS');
   const [error, setError] = useState(false);
   const [resetDe, setResetDe] = useState(null);
   const [estadoDe, setEstadoDe] = useState(null);
+  const [centroDe, setCentroDe] = useState(null);
   const [activar, setActivar] = useState(true);
 
   const cargar = () => {
@@ -50,7 +54,10 @@ export default function GestionUsuarios() {
       .catch(() => setError(true));
   };
 
-  useEffect(() => { cargar(); }, []);
+  useEffect(() => {
+    cargar();
+    api.get('/centros').then(r => setCentros(r.data || [])).catch(() => setCentros([]));
+  }, []);
 
   const roles = useMemo(() => {
     if (!usuarios) return [];
@@ -148,6 +155,7 @@ export default function GestionUsuarios() {
                 <th>Nombre</th>
                 <th>Email</th>
                 <th>Detalle</th>
+                <th>Centro</th>
                 <th>Registro</th>
                 <th>Estado</th>
                 <th className="text-right">Acciones</th>
@@ -160,10 +168,23 @@ export default function GestionUsuarios() {
                   <td className="font-medium">{u.nombreCompleto}</td>
                   <td>{u.email}</td>
                   <td className="text-xs text-warm-gray">{detalleUsuario(u)}</td>
+                  <td className="text-xs">
+                    {u.tipoUsuario === 'SECRETARIO' ? (
+                      u.nombreCentroSalud
+                        ? <span className="inline-flex items-center gap-1"><Building2 className="w-3.5 h-3.5 text-teal-medico" /> {u.nombreCentroSalud}</span>
+                        : <span className="text-slate-400">Sin asignar</span>
+                    ) : '—'}
+                  </td>
                   <td className="text-xs">{u.fechaRegistro ? formatearFecha(u.fechaRegistro) : '—'}</td>
                   <td><span className={`badge-salud ${u.activo ? 'badge-salud--pine' : 'badge-salud--brick'}`}>{u.activo ? 'Activo' : 'Inactivo'}</span></td>
                   <td className="text-right">
                     <div className="flex gap-1.5 justify-end">
+                      {u.tipoUsuario === 'SECRETARIO' && (
+                        <button onClick={() => setCentroDe(u)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-600 px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-teal-medico/40 hover:text-teal-medico transition-colors">
+                          <Building2 className="w-3.5 h-3.5" /> {u.nombreCentroSalud ? 'Cambiar centro' : 'Vincular centro'}
+                        </button>
+                      )}
                       <button onClick={() => setResetDe(u)}
                         className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-600 px-2.5 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:border-teal-medico/40 hover:text-teal-medico transition-colors">
                         <KeyRound className="w-3.5 h-3.5" /> Resetear clave
@@ -202,6 +223,15 @@ export default function GestionUsuarios() {
           activar={activar}
           onClose={() => setEstadoDe(null)}
           onConfirmado={cargar}
+        />
+      )}
+
+      {centroDe && (
+        <AsignarCentroModal
+          usuario={centroDe}
+          centros={centros}
+          onClose={() => setCentroDe(null)}
+          onGuardado={cargar}
         />
       )}
     </div>

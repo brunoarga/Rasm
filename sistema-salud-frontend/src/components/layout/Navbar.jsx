@@ -43,6 +43,7 @@ export default function Navbar() {
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/pedir-ayuda" onClick={() => setOpen(false)}>Pedir Ayuda</Link>
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/mis-solicitudes" onClick={() => setOpen(false)}>Mis Solicitudes</Link>
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/foro" onClick={() => setOpen(false)}>Foro</Link>
+      <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/soporte" onClick={() => setOpen(false)}>Soporte</Link>
     </>
   ) : user?.tipoUsuario === 'PROFESIONAL' ? (
     <>
@@ -55,6 +56,7 @@ export default function Navbar() {
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/secretaria/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/secretaria/agenda" onClick={() => setOpen(false)}>Agenda</Link>
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/secretaria/solicitudes" onClick={() => setOpen(false)}>Solicitudes</Link>
+      <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/soporte" onClick={() => setOpen(false)}>Soporte</Link>
     </>
   ) : user?.tipoUsuario === 'ADMIN' ? (
     <>
@@ -92,7 +94,7 @@ export default function Navbar() {
             <ThemeToggle />
             {user ? (
               <span className="flex items-center gap-2">
-                {['PACIENTE', 'PROFESIONAL'].includes(user.tipoUsuario) && <MessagesBell />}
+                {['PACIENTE', 'PROFESIONAL', 'SECRETARIO'].includes(user.tipoUsuario) && <MessagesBell />}
                 <NotificationBell
                   onSolicitudClick={(id) => setSolicitudEnRevision(id)}
                   onTurnoClick={(id) => setTurnoSeleccionado(id)}
@@ -131,7 +133,7 @@ export default function Navbar() {
                 {userMenu}
                 <div className="pt-3 border-t border-stone/30 mt-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                {['PACIENTE', 'PROFESIONAL'].includes(user.tipoUsuario) && <MessagesBell />}
+                {['PACIENTE', 'PROFESIONAL', 'SECRETARIO'].includes(user.tipoUsuario) && <MessagesBell />}
                 <NotificationBell
                   onSolicitudClick={(id) => setSolicitudEnRevision(id)}
                   onTurnoClick={(id) => setTurnoSeleccionado(id)}

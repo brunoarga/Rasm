@@ -1,6 +1,7 @@
 package com.sistemasalud.entity;
 
 import com.sistemasalud.enums.EstadoSolicitud;
+import com.sistemasalud.enums.OrigenSolicitud;
 import com.sistemasalud.enums.Prioridad;
 import jakarta.persistence.*;
 import lombok.*;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 public class Solicitud {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_solicitud") private Long id;
+    @Column(length = 30) private String folio;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_paciente", nullable = false) private Paciente paciente;
     @ManyToOne(fetch = FetchType.LAZY)
@@ -21,6 +23,7 @@ public class Solicitud {
     @Column(columnDefinition = "TEXT", nullable = false) private String descripcion;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20) private EstadoSolicitud estado;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 10) private Prioridad prioridad;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 10) private OrigenSolicitud origen;
     @Column(name = "fecha_creacion", nullable = false, updatable = false) private LocalDateTime fechaCreacion;
     @Column(name = "fecha_actualizacion") private LocalDateTime fechaActualizacion;
     @ManyToOne(fetch = FetchType.LAZY)
@@ -32,4 +35,5 @@ public class Solicitud {
     @Column(name = "archivo_adjunto", length = 255) private String archivoAdjunto;
     @Column(columnDefinition = "TEXT") private String anamnesis;
     @Column(name = "activa") private Boolean activa = true;
+    @Column(name = "emergencia") private Boolean emergencia = false;
 }

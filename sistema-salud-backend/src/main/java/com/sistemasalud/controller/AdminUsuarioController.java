@@ -1,5 +1,6 @@
 package com.sistemasalud.controller;
 
+import com.sistemasalud.dto.request.AsignarCentroRequest;
 import com.sistemasalud.dto.request.CambiarPasswordRequest;
 import com.sistemasalud.dto.request.EstadoUsuarioRequest;
 import com.sistemasalud.dto.response.UsuarioAdminResponse;
@@ -33,6 +34,13 @@ public class AdminUsuarioController {
     public ResponseEntity<Void> cambiarEstado(@PathVariable Long id,
                                               @Valid @RequestBody EstadoUsuarioRequest request) {
         adminUsuarioService.cambiarEstado(id, Boolean.TRUE.equals(request.getActivo()));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/centro") @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> asignarCentro(@PathVariable Long id,
+                                              @Valid @RequestBody AsignarCentroRequest request) {
+        adminUsuarioService.asignarCentroSecretario(id, request.getIdCentroSalud());
         return ResponseEntity.noContent().build();
     }
 }

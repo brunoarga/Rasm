@@ -22,17 +22,17 @@ public class MensajeController {
 
     private final MensajeService mensajeService;
 
-    @GetMapping("/conversaciones") @PreAuthorize("hasAnyRole('PACIENTE','PROFESIONAL')")
+    @GetMapping("/conversaciones") @PreAuthorize("hasAnyRole('PACIENTE','PROFESIONAL','SECRETARIO')")
     public ResponseEntity<List<ConversacionResponse>> conversaciones(@AuthenticationPrincipal UserPrincipal u) {
         return ResponseEntity.ok(mensajeService.listarConversaciones(u.getId(), u.getTipoUsuario()));
     }
 
-    @GetMapping("/conversaciones/{id}") @PreAuthorize("hasAnyRole('PACIENTE','PROFESIONAL')")
+    @GetMapping("/conversaciones/{id}") @PreAuthorize("hasAnyRole('PACIENTE','PROFESIONAL','SECRETARIO')")
     public ResponseEntity<ConversacionDetalleResponse> detalle(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal u) {
         return ResponseEntity.ok(mensajeService.obtenerConversacion(id, u.getId()));
     }
 
-    @PostMapping("/conversaciones/{id}/mensajes") @PreAuthorize("hasAnyRole('PACIENTE','PROFESIONAL')")
+    @PostMapping("/conversaciones/{id}/mensajes") @PreAuthorize("hasAnyRole('PACIENTE','PROFESIONAL','SECRETARIO')")
     public ResponseEntity<MensajeResponse> enviar(@PathVariable Long id,
             @Valid @RequestBody EnviarMensajeRequest dto, @AuthenticationPrincipal UserPrincipal u) {
         return ResponseEntity.status(HttpStatus.CREATED).body(mensajeService.enviarMensaje(id, u.getId(), dto.getContenido()));

@@ -1,15 +1,20 @@
 package com.sistemasalud.service;
 
+import com.sistemasalud.dto.request.AsignarTurnoRequest;
 import com.sistemasalud.dto.request.DerivacionRequest;
+import com.sistemasalud.dto.request.SolicitudPresencialRequest;
 import com.sistemasalud.dto.request.SolicitudRequest;
 import com.sistemasalud.dto.response.SolicitudResponse;
 import com.sistemasalud.entity.*;
 import com.sistemasalud.enums.EstadoSolicitud;
+import com.sistemasalud.enums.OrigenSolicitud;
 import com.sistemasalud.enums.Prioridad;
+import com.sistemasalud.enums.TipoPractica;
 import com.sistemasalud.enums.TipoUsuario;
 import com.sistemasalud.exception.ConsentimientoRequeridoException;
 import com.sistemasalud.exception.EstadoInvalidoException;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
+import com.sistemasalud.exception.SolicitudInvalidaException;
 import com.sistemasalud.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -42,6 +48,15 @@ class SolicitudServiceTest {
     @Mock private RegistroSintomatologiaRepository registroSintomatologiaRepository;
     @Mock private NotificacionService notificacionService;
     @Mock private MensajeService mensajeService;
+    @Mock private SecretarioRepository secretarioRepository;
+    @Mock private BitacoraSolicitudRepository bitacoraRepository;
+    @Mock private EmailService emailService;
+    @Mock private WhatsAppService whatsAppService;
+    @Mock private UsuarioRepository usuarioRepository;
+    @Mock private AlertaDemoraRepository alertaDemoraRepository;
+    @Mock private PaseService paseService;
+    @Mock private SMSService smsService;
+    @Mock private WebhookService webhookService;
 
     private SolicitudService service;
     private Usuario usuarioPaciente;
@@ -53,7 +68,7 @@ class SolicitudServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService);
+        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService, secretarioRepository, bitacoraRepository, emailService, whatsAppService, usuarioRepository, alertaDemoraRepository, paseService, smsService, webhookService);
 
         usuarioPaciente = Usuario.builder().id(1L).nombreCompleto("Juan Perez").email("juan@test.com").tipoUsuario(TipoUsuario.PACIENTE).build();
         usuarioProfesional = Usuario.builder().id(2L).nombreCompleto("Dra. Garcia").email("garcia@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build();
@@ -323,6 +338,25 @@ class SolicitudServiceTest {
     }
 
     @Test
+    void derivarSolicitud_aProfesionalDeOtroCentro_deberiaReasignarCentro() {
+        solicitud.setProfesional(profesional);
+        CentroSalud centroNuevo = CentroSalud.builder().id(99L).nombre("Hospital de Perico").build();
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(profesionalRepository.findById(2L)).thenReturn(Optional.of(Profesional.builder().id(2L).usuario(Usuario.builder().id(3L).nombreCompleto("Dr. Otro").email("otro@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build()).centroSalud(centroNuevo).build()));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        DerivacionRequest request = new DerivacionRequest();
+        request.setIdProfesional(2L);
+
+        service.derivarSolicitud(1L, request);
+
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .anyMatch(s -> s.getCentroSalud() != null && s.getCentroSalud().getId().equals(99L));
+    }
+
+    @Test
     void derivarSolicitud_conTurno_deberiaCrearCitaYAgendarSolicitud() {
         solicitud.setProfesional(profesional);
         when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
@@ -371,6 +405,94 @@ class SolicitudServiceTest {
     }
 
     @Test
+    void crearSolicitudPresencial_deberiaCrearConOrigenPRESENCIAL() {
+        when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(1L);
+        request.setIdCategoria(1L);
+        request.setTitulo("Consulta presencial");
+        request.setDescripcion("Paciente espontáneo");
+        request.setEsUrgente(false);
+
+        SolicitudResponse response = service.crearSolicitudPresencial(request, "PROFESIONAL");
+
+        assertThat(response.getOrigen()).isEqualTo("PRESENCIAL");
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getAllValues())
+                .anyMatch(s -> s.getOrigen() == OrigenSolicitud.PRESENCIAL);
+        verify(notificacionService).crearNotificacion(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
+        verify(mensajeService, never()).abrirConversacion(any(Solicitud.class));
+    }
+
+    @Test
+    void crearSolicitudPresencial_conTurno_deberiaAsignarProfesionalCentroYTurno() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Público").build();
+        when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(centro));
+        when(profesionalRepository.findById(1L)).thenReturn(Optional.of(profesional));
+        when(citaRepository.findByProfesionalIdAndFechaHoraBetween(any(), any(), any())).thenReturn(List.of());
+        when(citaRepository.save(any(Cita.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(1L);
+        request.setIdCategoria(1L);
+        request.setTitulo("Turno presencial");
+        request.setDescripcion("Alta en el centro");
+        request.setEsUrgente(false);
+        request.setIdCentroSalud(5L);
+        request.setIdProfesional(1L);
+        request.setFechaHora("2026-08-20T10:00");
+        request.setDuracion(30);
+        request.setModalidad("PRESENCIAL");
+
+        SolicitudResponse response = service.crearSolicitudPresencial(request, "PROFESIONAL");
+
+        assertThat(response.getOrigen()).isEqualTo("PRESENCIAL");
+        assertThat(response.getEstado()).isEqualTo("ASIGNADA");
+        assertThat(response.getIdProfesional()).isEqualTo(1L);
+        assertThat(response.getIdCentroSalud()).isEqualTo(5L);
+        assertThat(response.getFechaTurno()).isEqualTo(LocalDateTime.of(2026, 8, 20, 10, 0));
+        assertThat(response.getDuracionTurno()).isEqualTo(30);
+        verify(citaRepository).save(any(Cita.class));
+        verify(mensajeService).abrirConversacion(any(Solicitud.class));
+        verify(notificacionService, times(2)).crearNotificacion(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void crearSolicitud_online_deberiaCrearConOrigenONLINE() {
+        when(pacienteRepository.findByUsuarioId(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(solicitudRepository.save(any(Solicitud.class))).thenReturn(solicitud);
+
+        SolicitudRequest request = new SolicitudRequest();
+        request.setIdCategoria(1L);
+        request.setTitulo("Necesito ayuda");
+        request.setDescripcion("Me siento mal");
+        request.setEsUrgente(false);
+
+        SolicitudResponse response = service.crearSolicitud(1L, request);
+
+        assertThat(response.getOrigen()).isEqualTo("ONLINE");
+    }
+
+    @Test
+    void crearSolicitudPresencial_noEncontrado_deberiaLanzarExcepcion() {
+        when(pacienteRepository.findById(99L)).thenReturn(Optional.empty());
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(99L);
+
+        assertThatThrownBy(() -> service.crearSolicitudPresencial(request, "PROFESIONAL"))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
     void listarSolicitudesPendientes_deberiaOrdenarUrgentesPrimero() {
         Solicitud urgente = Solicitud.builder().id(2L).paciente(paciente).categoria(categoria).titulo("Urgente").descripcion("Auxilio").estado(EstadoSolicitud.CREADA).prioridad(Prioridad.URGENTE).fechaCreacion(LocalDateTime.now()).fechaActualizacion(LocalDateTime.now()).activa(true).build();
 
@@ -381,5 +503,305 @@ class SolicitudServiceTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getPrioridad()).isEqualTo("URGENTE");
         assertThat(result.get(1).getPrioridad()).isEqualTo("MEDIA");
+    }
+
+    @Test
+    void derivarACentro_deberiaDejarRecibidaConFolioYBitacora() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico")
+                .emailInstitucional("recepcion@hosp.com").telefonoInstitucional("1155550001").build();
+        Secretario referente = Secretario.builder().id(1L)
+                .usuario(Usuario.builder().id(10L).nombreCompleto("Referente").email("ref@test.com").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(centro).build();
+        solicitud.setEstado(EstadoSolicitud.CREADA);
+        solicitud.setFechaCreacion(LocalDateTime.now());
+        usuarioPaciente.setTelefono("1155554444");
+        usuarioPaciente.setDireccion("Av. Colon 123");
+        paciente.setFechaNacimiento(LocalDate.of(1990, 5, 15));
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(centro));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(secretarioRepository.findByCentroSaludId(5L)).thenReturn(List.of(referente));
+        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuarioProfesional));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.derivarACentro(1L, 5L, 3L);
+
+        assertThat(response.getEstado()).isEqualTo("RECIBIDA");
+        assertThat(response.getFolio()).startsWith("NSL-");
+        assertThat(response.getEmailPaciente()).isEqualTo("juan@test.com");
+        assertThat(response.getTelefonoPaciente()).isEqualTo("1155554444");
+        assertThat(response.getEdadPaciente()).isNotNull();
+        assertThat(response.getDireccionPaciente()).isEqualTo("Av. Colon 123");
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getAllValues()).anyMatch(s -> s.getFolio() != null && s.getFolio().contains("NSL-"));
+        verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
+        ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificacionService).notificarMensaje(eq(referente.getUsuario()), anyString(), msgCaptor.capture(), any(Solicitud.class));
+        String alerta = msgCaptor.getValue();
+        assertThat(alerta).contains("juan@test.com").contains("1155554444")
+                .contains("Av. Colon 123").contains("Edad: ").contains("años")
+                .contains("Juan Perez");
+        verify(emailService).enviarEmailNotificacion(eq("recepcion@hosp.com"), anyString(), anyString());
+        verify(whatsAppService).enviarPlantilla(eq("1155550001"), eq("nueva_derivacion"), anyList());
+    }
+
+    @Test
+    void derivarACentro_solicitudNoEncontrada_deberiaLanzarExcepcion() {
+        when(solicitudRepository.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.derivarACentro(99L, 5L, 3L))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void asignarTurno_comoReferente_deberiaAsignarYNotificarCompleto() {
+        usuarioPaciente.setTelefono("1155556666");
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico").direccion("Av. Siempre Viva 123").build();
+        Secretario referente = Secretario.builder().id(1L).usuario(usuarioProfesional).centroSalud(centro).build();
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(centro);
+        solicitud.setFolio("NSL-2026-1");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(secretarioRepository.findByUsuarioId(2L)).thenReturn(Optional.of(referente));
+        when(profesionalRepository.findById(1L)).thenReturn(Optional.of(profesional));
+        when(citaRepository.findByProfesionalIdAndFechaHoraBetween(any(), any(), any())).thenReturn(List.of());
+        when(citaRepository.save(any(Cita.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuarioProfesional));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paseService.generarCodigoPase()).thenReturn("PG7K2QX5A1");
+        when(paseService.linkPase("PG7K2QX5A1")).thenReturn("http://localhost:3000/pase/PG7K2QX5A1");
+
+        AsignarTurnoRequest request = new AsignarTurnoRequest();
+        request.setIdProfesional(1L);
+        request.setFechaHora("2026-09-01T10:00");
+        request.setDuracion(30);
+        request.setModalidad("PRESENCIAL");
+
+        SolicitudResponse response = service.asignarTurno(1L, request, 2L, "SECRETARIO");
+
+        assertThat(response.getEstado()).isEqualTo("ASIGNADA");
+        assertThat(response.getFolio()).isEqualTo("NSL-2026-1");
+        verify(notificacionService).crearNotificacion(eq(usuarioPaciente), eq("Turno confirmado"),
+                argThat(m -> m.contains("Hospital Publico") && m.contains("2026-09-01") && m.contains("10:00")
+                        && m.contains("PG7K2QX5A1") && m.contains("http://localhost:3000/pase/PG7K2QX5A1")), any(Solicitud.class));
+        verify(whatsAppService).enviarPlantillaConEnlace(eq("1155556666"), eq("turno_confirmado"), anyList(),
+                eq("http://localhost:3000/pase/PG7K2QX5A1"));
+        verify(smsService).enviarSms(eq("1155556666"), argThat(m -> m.contains("PG7K2QX5A1")));
+        verify(webhookService).notificarTurno(any(Cita.class));
+        verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
+    }
+
+    @Test
+    void asignarTurno_referenteDeOtroCentro_deberiaDenegar() {
+        CentroSalud centroA = CentroSalud.builder().id(5L).nombre("Hospital A").build();
+        CentroSalud centroB = CentroSalud.builder().id(6L).nombre("Hospital B").build();
+        Secretario referenteB = Secretario.builder().id(1L).usuario(usuarioProfesional).centroSalud(centroB).build();
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(centroA);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(secretarioRepository.findByUsuarioId(2L)).thenReturn(Optional.of(referenteB));
+
+        AsignarTurnoRequest request = new AsignarTurnoRequest();
+        request.setIdProfesional(1L);
+        request.setFechaHora("2026-09-01T10:00");
+
+        assertThatThrownBy(() -> service.asignarTurno(1L, request, 2L, "SECRETARIO"))
+                .isInstanceOf(com.sistemasalud.exception.AccesoDenegadoException.class);
+    }
+
+    @Test
+    void asignarTurno_centralSinCentro_deberiaDenegar() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico").build();
+        Secretario central = Secretario.builder().id(1L).usuario(usuarioProfesional).centroSalud(null).build();
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(centro);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(secretarioRepository.findByUsuarioId(2L)).thenReturn(Optional.of(central));
+
+        AsignarTurnoRequest request = new AsignarTurnoRequest();
+        request.setIdProfesional(1L);
+        request.setFechaHora("2026-09-01T10:00");
+
+        assertThatThrownBy(() -> service.asignarTurno(1L, request, 2L, "SECRETARIO"))
+                .isInstanceOf(com.sistemasalud.exception.AccesoDenegadoException.class);
+    }
+
+    @Test
+    void listarSolicitudes_referenteConCentro_deberiaFiltrarPorCentro() {
+        Secretario referente = Secretario.builder().id(1L).usuario(usuarioProfesional)
+                .centroSalud(CentroSalud.builder().id(5L).nombre("Hospital Publico").build()).build();
+        when(secretarioRepository.findByUsuarioId(2L)).thenReturn(Optional.of(referente));
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(CentroSalud.builder().id(5L).nombre("Hospital Publico").build());
+        when(solicitudRepository.findByCentroSaludIdAndEstadoInOrderByFechaCreacionDesc(eq(5L), any()))
+                .thenReturn(List.of(solicitud));
+
+        List<SolicitudResponse> result = service.listarSolicitudes(2L, "SECRETARIO", null, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEstado()).isEqualTo("RECIBIDA");
+    }
+
+    @Test
+    void perfilSecretario_referente_deberiaDevolverCentro() {
+        Secretario referente = Secretario.builder().id(1L).usuario(usuarioProfesional)
+                .centroSalud(CentroSalud.builder().id(5L).nombre("Hospital Publico").build()).build();
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuarioProfesional));
+        when(secretarioRepository.findByUsuarioId(2L)).thenReturn(Optional.of(referente));
+
+        com.sistemasalud.dto.response.PerfilSecretarioResponse perfil = service.perfilSecretario(2L);
+
+        assertThat(perfil.isReferente()).isTrue();
+        assertThat(perfil.getIdCentroSalud()).isEqualTo(5L);
+        assertThat(perfil.getNombreCentroSalud()).isEqualTo("Hospital Publico");
+    }
+
+    @Test
+    void perfilSecretario_central_deberiaDevolverSinCentro() {
+        Secretario central = Secretario.builder().id(1L).usuario(usuarioProfesional).centroSalud(null).build();
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuarioProfesional));
+        when(secretarioRepository.findByUsuarioId(2L)).thenReturn(Optional.of(central));
+
+        com.sistemasalud.dto.response.PerfilSecretarioResponse perfil = service.perfilSecretario(2L);
+
+        assertThat(perfil.isReferente()).isFalse();
+        assertThat(perfil.getIdCentroSalud()).isNull();
+    }
+
+    @Test
+    void crearSolicitudPresencial_comoSecretarioConTurno_deberiaLanzarExcepcion() {
+        when(pacienteRepository.findById(1L)).thenReturn(Optional.of(paciente));
+
+        SolicitudPresencialRequest request = new SolicitudPresencialRequest();
+        request.setIdPaciente(1L);
+        request.setIdCategoria(1L);
+        request.setTitulo("Consulta");
+        request.setDescripcion("Paciente");
+        request.setIdProfesional(1L);
+        request.setFechaHora("2026-09-01T10:00");
+
+        assertThatThrownBy(() -> service.crearSolicitudPresencial(request, "SECRETARIO"))
+                .isInstanceOf(SolicitudInvalidaException.class);
+    }
+
+    @Test
+    void cambiarCentro_reasignacion_deberiaCerrarAlertasYReasignar() {
+        CentroSalud centroA = CentroSalud.builder().id(5L).nombre("Hospital A").build();
+        CentroSalud centroB = CentroSalud.builder().id(6L).nombre("Hospital B").build();
+        Secretario referenteB = Secretario.builder().id(2L)
+                .usuario(Usuario.builder().id(11L).nombreCompleto("Referente B").email("refb@test.com").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(centroB).build();
+        AlertaDemora alerta = AlertaDemora.builder().id(1L).solicitud(solicitud).centroSalud(centroA)
+                .estado("ABIERTA").tipo("DEMORA").fechaGenerada(LocalDateTime.now().minusHours(30)).build();
+
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(centroA);
+        solicitud.setFolio("NSL-2026-1");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(centroSaludRepository.findById(6L)).thenReturn(Optional.of(centroB));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(secretarioRepository.findByCentroSaludId(6L)).thenReturn(List.of(referenteB));
+        when(alertaDemoraRepository.findBySolicitudIdAndEstado(1L, "ABIERTA")).thenReturn(List.of(alerta));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.cambiarCentro(1L, 6L);
+
+        assertThat(response.getEstado()).isEqualTo("RECIBIDA");
+        assertThat(response.getNombreCentroSalud()).isEqualTo("Hospital B");
+        assertThat(response.getFolio()).isEqualTo("NSL-2026-1");
+        verify(alertaDemoraRepository).saveAll(anyList());
+        assertThat(alerta.getEstado()).isEqualTo("RESUELTA");
+        assertThat(alerta.getFechaResuelta()).isNotNull();
+        verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
+        verify(notificacionService).notificarMensaje(eq(referenteB.getUsuario()), anyString(), anyString(), any(Solicitud.class));
+        verify(notificacionService).crearNotificacion(eq(usuarioPaciente), eq("Nuevo centro asignado"), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void cambiarCentro_solicitudAsignada_noReseteaEstado() {
+        CentroSalud centroA = CentroSalud.builder().id(5L).nombre("Hospital A").build();
+        CentroSalud centroB = CentroSalud.builder().id(6L).nombre("Hospital B").build();
+        solicitud.setEstado(EstadoSolicitud.ASIGNADA);
+        solicitud.setCentroSalud(centroA);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(centroSaludRepository.findById(6L)).thenReturn(Optional.of(centroB));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(alertaDemoraRepository.findBySolicitudIdAndEstado(1L, "ABIERTA")).thenReturn(List.of());
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.cambiarCentro(1L, 6L);
+
+        assertThat(response.getEstado()).isEqualTo("ASIGNADA");
+        assertThat(response.getNombreCentroSalud()).isEqualTo("Hospital B");
+        verify(alertaDemoraRepository, never()).saveAll(anyList());
+        verify(notificacionService, never()).notificarMensaje(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void marcarEmergencia_sinGuardiaDisponible_deberiaActivarProtocoloYAlertarCrisis() {
+        solicitud.setEstado(EstadoSolicitud.CREADA);
+        solicitud.setPrioridad(Prioridad.MEDIA);
+        Secretario central = Secretario.builder().id(1L).usuario(usuarioProfesional).centroSalud(null).build();
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuarioProfesional));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(centroObraSocialPracticaRepository.findByObraSocialIdAndTipoPracticaAndActivoTrue(eq(1L), eq(TipoPractica.GUARDIA_EMERGENCIA))).thenReturn(List.of());
+        when(secretarioRepository.findAll()).thenReturn(List.of(central));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.marcarEmergencia(1L, 3L);
+
+        assertThat(response.isEmergencia()).isTrue();
+        assertThat(response.getPrioridad()).isEqualTo("URGENTE");
+        assertThat(response.getEstado()).isEqualTo("REVISADA");
+        verify(notificacionService).notificarMensaje(eq(usuarioProfesional), eq("Crisis: no hay guardia disponible"),
+                argThat(m -> m.contains("PROTOCOLO DE EMERGENCIA") && m.contains("Necesito ayuda")), any(Solicitud.class));
+        verify(emailService).enviarEmailNotificacion(eq("garcia@test.com"), eq("Crisis: no hay guardia disponible"), anyString());
+    }
+
+    @Test
+    void marcarEmergencia_conGuardiaDisponible_deberiaDerivarACentro() {
+        CentroSalud guardia = CentroSalud.builder().id(5L).nombre("Hospital de Guardia")
+                .tieneEmergencias(true).activo(true).build();
+        CentroObraSocialPractica relacion = CentroObraSocialPractica.builder()
+                .id(1L).centro(guardia).tipoPractica(TipoPractica.GUARDIA_EMERGENCIA).activo(true).build();
+        solicitud.setEstado(EstadoSolicitud.CREADA);
+        solicitud.setPrioridad(Prioridad.MEDIA);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuarioProfesional));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(centroObraSocialPracticaRepository.findByObraSocialIdAndTipoPracticaAndActivoTrue(eq(1L), eq(TipoPractica.GUARDIA_EMERGENCIA))).thenReturn(List.of(relacion));
+        when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(guardia));
+        when(secretarioRepository.findByCentroSaludId(5L)).thenReturn(List.of());
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.marcarEmergencia(1L, 3L);
+
+        assertThat(response.isEmergencia()).isTrue();
+        assertThat(response.getEstado()).isEqualTo("RECIBIDA");
+        assertThat(response.getIdCentroSalud()).isEqualTo(5L);
+        verify(notificacionService).crearNotificacion(eq(usuarioPaciente), eq("Solicitud derivada a un centro"), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void listarTriaje_deberiaOrdenarEmergenciasPrimero() {
+        Solicitud urgente = Solicitud.builder().id(2L).paciente(paciente).categoria(categoria)
+                .titulo("Urgente").descripcion("Auxilio").estado(EstadoSolicitud.CREADA)
+                .prioridad(Prioridad.URGENTE).emergencia(true)
+                .fechaCreacion(LocalDateTime.now().minusHours(1)).fechaActualizacion(LocalDateTime.now().minusHours(1))
+                .activa(true).build();
+        solicitud.setEstado(EstadoSolicitud.REVISADA);
+        solicitud.setPrioridad(Prioridad.ALTA);
+        solicitud.setFechaCreacion(LocalDateTime.now().minusHours(3));
+        solicitud.setFechaActualizacion(LocalDateTime.now().minusHours(3));
+        when(solicitudRepository.findAll()).thenReturn(List.of(solicitud, urgente));
+
+        List<SolicitudResponse> result = service.listarTriaje();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo(2L);
+        assertThat(result.get(0).isEmergencia()).isTrue();
+        assertThat(result.get(1).getPrioridad()).isEqualTo("ALTA");
     }
 }

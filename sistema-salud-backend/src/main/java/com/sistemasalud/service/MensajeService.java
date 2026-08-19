@@ -7,6 +7,7 @@ import com.sistemasalud.entity.Conversacion;
 import com.sistemasalud.entity.Mensaje;
 import com.sistemasalud.entity.Paciente;
 import com.sistemasalud.entity.Profesional;
+import com.sistemasalud.entity.Secretario;
 import com.sistemasalud.entity.Solicitud;
 import com.sistemasalud.entity.Usuario;
 import com.sistemasalud.enums.TipoUsuario;
@@ -14,6 +15,7 @@ import com.sistemasalud.exception.AccesoDenegadoException;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
 import com.sistemasalud.repository.ConversacionRepository;
 import com.sistemasalud.repository.MensajeRepository;
+import com.sistemasalud.repository.SecretarioRepository;
 import com.sistemasalud.repository.SolicitudRepository;
 import com.sistemasalud.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class MensajeService {
     private final SolicitudRepository solicitudRepository;
     private final UsuarioRepository usuarioRepository;
     private final NotificacionService notificacionService;
+    private final SecretarioRepository secretarioRepository;
 
     @Transactional
     public Conversacion abrirConversacion(Long idSolicitud) {
@@ -57,9 +60,17 @@ public class MensajeService {
 
     @Transactional(readOnly = true)
     public List<ConversacionResponse> listarConversaciones(Long idUsuario, String tipoUsuario) {
-        List<Conversacion> conversaciones = TipoUsuario.PACIENTE.name().equals(tipoUsuario)
-                ? conversacionRepository.findParaPaciente(idUsuario)
-                : conversacionRepository.findParaProfesional(idUsuario);
+        List<Conversacion> conversaciones;
+        if (TipoUsuario.PACIENTE.name().equals(tipoUsuario)) {
+            conversaciones = conversacionRepository.findParaPaciente(idUsuario);
+        } else if (TipoUsuario.PROFESIONAL.name().equals(tipoUsuario)) {
+            conversaciones = conversacionRepository.findParaProfesional(idUsuario);
+        } else {
+            Secretario sec = secretarioRepository.findByUsuarioId(idUsuario).orElse(null);
+            conversaciones = sec != null && sec.getCentroSalud() != null
+                    ? conversacionRepository.findParaSecretarioCentro(sec.getCentroSalud().getId())
+                    : conversacionRepository.findParaCentral();
+        }
         return conversaciones.stream().map(c -> toConversacionResponse(c, idUsuario)).toList();
     }
 
@@ -125,8 +136,14 @@ public class MensajeService {
         boolean esPaciente = solicitud.getPaciente().getUsuario().getId().equals(idUsuario);
         boolean esProfesional = solicitud.getProfesional() != null
                 && solicitud.getProfesional().getUsuario().getId().equals(idUsuario);
-        if (!esPaciente && !esProfesional)
-            throw new AccesoDenegadoException("No tiene acceso a esta conversación");
+        if (esPaciente || esProfesional) return;
+        Secretario sec = secretarioRepository.findByUsuarioId(idUsuario).orElse(null);
+        if (sec == null) throw new AccesoDenegadoException("No tiene acceso a esta conversación");
+        if (sec.getCentroSalud() != null) {
+            boolean delCentro = solicitud.getCentroSalud() != null
+                    && solicitud.getCentroSalud().getId().equals(sec.getCentroSalud().getId());
+            if (!delCentro) throw new AccesoDenegadoException("No tiene acceso a esta conversación");
+        }
     }
 
     private ConversacionResponse toConversacionResponse(Conversacion c, Long idUsuario) {

@@ -11,6 +11,7 @@ import com.sistemasalud.exception.AccesoDenegadoException;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
 import com.sistemasalud.repository.ConversacionRepository;
 import com.sistemasalud.repository.MensajeRepository;
+import com.sistemasalud.repository.SecretarioRepository;
 import com.sistemasalud.repository.SolicitudRepository;
 import com.sistemasalud.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -37,6 +39,7 @@ class MensajeServiceTest {
     @Mock private SolicitudRepository solicitudRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private NotificacionService notificacionService;
+    @Mock private SecretarioRepository secretarioRepository;
 
     private MensajeService service;
     private Usuario usuarioPaciente;
@@ -48,7 +51,7 @@ class MensajeServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MensajeService(conversacionRepository, mensajeRepository, solicitudRepository, usuarioRepository, notificacionService);
+        service = new MensajeService(conversacionRepository, mensajeRepository, solicitudRepository, usuarioRepository, notificacionService, secretarioRepository);
 
         usuarioPaciente = Usuario.builder().id(1L).nombreCompleto("Juan Perez").email("juan@test.com").tipoUsuario(TipoUsuario.PACIENTE).build();
         usuarioProfesional = Usuario.builder().id(2L).nombreCompleto("Dra. Garcia").email("garcia@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build();
@@ -184,5 +187,91 @@ class MensajeServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getInterlocutorNombre()).isEqualTo("Dra. Garcia");
         assertThat(result.get(0).getRolInterlocutor()).isEqualTo("PROFESIONAL");
+    }
+
+    @Test
+    void listarConversaciones_comoSecretarioCentral_deberiaUsarQueryCentral() {
+        Secretario central = Secretario.builder().id(1L)
+                .usuario(Usuario.builder().id(5L).nombreCompleto("Central").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(null).build();
+        when(secretarioRepository.findByUsuarioId(5L)).thenReturn(Optional.of(central));
+        when(conversacionRepository.findParaCentral()).thenReturn(List.of(conversacion));
+        when(mensajeRepository.findTopByConversacionIdOrderByFechaEnvioDesc(10L)).thenReturn(Optional.empty());
+        when(mensajeRepository.countByConversacionIdAndLeidoFalseAndEmisorIdNot(10L, 5L)).thenReturn(0L);
+
+        List<ConversacionResponse> result = service.listarConversaciones(5L, "SECRETARIO");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getInterlocutorNombre()).isEqualTo("Juan Perez");
+        verify(conversacionRepository).findParaCentral();
+        verify(conversacionRepository, never()).findParaSecretarioCentro(anyLong());
+    }
+
+    @Test
+    void listarConversaciones_comoSecretarioReferente_deberiaUsarQueryPorCentro() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico").build();
+        Secretario referente = Secretario.builder().id(1L)
+                .usuario(Usuario.builder().id(5L).nombreCompleto("Referente").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(centro).build();
+        when(secretarioRepository.findByUsuarioId(5L)).thenReturn(Optional.of(referente));
+        when(conversacionRepository.findParaSecretarioCentro(5L)).thenReturn(List.of(conversacion));
+        when(mensajeRepository.findTopByConversacionIdOrderByFechaEnvioDesc(10L)).thenReturn(Optional.empty());
+        when(mensajeRepository.countByConversacionIdAndLeidoFalseAndEmisorIdNot(10L, 5L)).thenReturn(0L);
+
+        List<ConversacionResponse> result = service.listarConversaciones(5L, "SECRETARIO");
+
+        assertThat(result).hasSize(1);
+        verify(conversacionRepository).findParaSecretarioCentro(5L);
+        verify(conversacionRepository, never()).findParaCentral();
+    }
+
+    @Test
+    void enviarMensaje_comoSecretarioCentral_deberiaPermitirYNotificarAPaciente() {
+        Secretario central = Secretario.builder().id(1L)
+                .usuario(Usuario.builder().id(5L).nombreCompleto("Central").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(null).build();
+        when(conversacionRepository.findById(10L)).thenReturn(Optional.of(conversacion));
+        when(secretarioRepository.findByUsuarioId(5L)).thenReturn(Optional.of(central));
+        when(usuarioRepository.findById(5L)).thenReturn(Optional.of(central.getUsuario()));
+        when(mensajeRepository.save(any(Mensaje.class))).thenAnswer(inv -> {
+            Mensaje m = inv.getArgument(0);
+            m.setId(200L);
+            return m;
+        });
+        when(conversacionRepository.save(any(Conversacion.class))).thenReturn(conversacion);
+
+        MensajeResponse response = service.enviarMensaje(10L, 5L, "Hola Juan, te respondemos desde soporte");
+
+        assertThat(response.getContenido()).isEqualTo("Hola Juan, te respondemos desde soporte");
+        ArgumentCaptor<Usuario> destinoCaptor = ArgumentCaptor.forClass(Usuario.class);
+        verify(notificacionService).notificarMensaje(destinoCaptor.capture(), eq("Nuevo mensaje"), anyString(), any(Solicitud.class));
+        assertThat(destinoCaptor.getValue().getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void enviarMensaje_secretarioDeOtroCentro_deberiaDenegar() {
+        solicitud.setCentroSalud(CentroSalud.builder().id(5L).nombre("Hospital A").build());
+        Secretario referenteB = Secretario.builder().id(1L)
+                .usuario(Usuario.builder().id(5L).nombreCompleto("Referente B").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(CentroSalud.builder().id(6L).nombre("Hospital B").build()).build();
+        when(conversacionRepository.findById(10L)).thenReturn(Optional.of(conversacion));
+        when(secretarioRepository.findByUsuarioId(5L)).thenReturn(Optional.of(referenteB));
+
+        assertThatThrownBy(() -> service.enviarMensaje(10L, 5L, "Hola"))
+                .isInstanceOf(AccesoDenegadoException.class);
+        verify(mensajeRepository, never()).save(any(Mensaje.class));
+    }
+
+    @Test
+    void listarConversaciones_otroUsuarioSinRolValido_deberiaUsarQueryCentral() {
+        when(secretarioRepository.findByUsuarioId(5L)).thenReturn(Optional.empty());
+        when(conversacionRepository.findParaCentral()).thenReturn(List.of(conversacion));
+        when(mensajeRepository.findTopByConversacionIdOrderByFechaEnvioDesc(10L)).thenReturn(Optional.empty());
+        when(mensajeRepository.countByConversacionIdAndLeidoFalseAndEmisorIdNot(10L, 5L)).thenReturn(0L);
+
+        List<ConversacionResponse> result = service.listarConversaciones(5L, "OTRO");
+
+        assertThat(result).hasSize(1);
+        verify(conversacionRepository).findParaCentral();
     }
 }

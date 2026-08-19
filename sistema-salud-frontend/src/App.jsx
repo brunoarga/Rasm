@@ -33,6 +33,8 @@ import BandejaSolicitudesSecretaria from './pages/secretaria/BandejaSolicitudesS
 import DetalleSolicitudSecretaria from './pages/secretaria/DetalleSolicitudSecretaria';
 import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
 import MensajesPage from './pages/mensajes/MensajesPage';
+import SoportePage from './pages/soporte/SoportePage';
+import PaseGuardiaPage from './pages/pase/PaseGuardiaPage';
 import fondoBg from './assets/fondo.png';
 
 const PrivateRoute = ({ children, roles }) => {
@@ -80,8 +82,10 @@ function AppLayout({ home }) {
           <Route path="/secretaria/solicitudes" element={<PrivateRoute roles={['SECRETARIO']}><BandejaSolicitudesSecretaria /></PrivateRoute>} />
           <Route path="/secretaria/solicitudes/:id" element={<PrivateRoute roles={['SECRETARIO']}><DetalleSolicitudSecretaria /></PrivateRoute>} />
           <Route path="/notificaciones" element={<PrivateRoute><NotificacionesPage /></PrivateRoute>} />
-          <Route path="/mensajes" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL']}><MensajesPage /></PrivateRoute>} />
-          <Route path="/mensajes/:id" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL']}><MensajesPage /></PrivateRoute>} />
+          <Route path="/mensajes" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL', 'SECRETARIO']}><MensajesPage /></PrivateRoute>} />
+          <Route path="/mensajes/:id" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL', 'SECRETARIO']}><MensajesPage /></PrivateRoute>} />
+          <Route path="/soporte" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL', 'SECRETARIO', 'ADMIN']}><SoportePage /></PrivateRoute>} />
+          <Route path="/pase/:codigo" element={<PaseGuardiaPage />} />
           <Route path="*" element={<Navigate to={home} />} />
         </Routes>
       </div>

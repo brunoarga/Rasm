@@ -49,7 +49,7 @@ export default function MensajesPage() {
   const hiloRef = useRef(null);
   const textoRef = useRef(null);
 
-  const backLink = user?.tipoUsuario === 'PROFESIONAL' ? '/profesional/solicitudes' : '/mi-espacio';
+  const backLink = user?.tipoUsuario === 'PROFESIONAL' ? '/profesional/solicitudes' : user?.tipoUsuario === 'SECRETARIO' ? '/secretaria/solicitudes' : '/mi-espacio';
 
   const prevLenRef = useRef(null);
   const convRef = useRef(null);
@@ -165,7 +165,9 @@ export default function MensajesPage() {
                   <p className="text-xs mt-1 leading-relaxed" style={{ color: '#7C7F85' }}>
                     {user?.tipoUsuario === 'PROFESIONAL'
                       ? 'Cuando asignes un caso, se abre un chat con el paciente.'
-                      : 'Cuando te asignen un profesional, se abre un chat para tu consulta.'}
+                      : user?.tipoUsuario === 'SECRETARIO'
+                        ? 'Acá podés atender dudas de pacientes relacionadas con las solicitudes de la red.'
+                        : 'Cuando te asignen un profesional, se abre un chat para tu consulta.'}
                   </p>
                 </div>
               ) : conversaciones.map(c => {
@@ -193,7 +195,11 @@ export default function MensajesPage() {
                       </p>
                       <div className="flex items-center justify-between gap-2 mt-1">
                         <p className="text-xs truncate" style={{ color: c.noLeidos > 0 ? '#1E293B' : '#7C7F85' }}>
-                          {c.ultimoMensaje || (user?.tipoUsuario === 'PROFESIONAL' ? 'Nuevo caso asignado — presentate' : 'Tu profesional está esperando tu mensaje')}
+                          {c.ultimoMensaje || (user?.tipoUsuario === 'PROFESIONAL'
+                            ? 'Nuevo caso asignado — presentate'
+                            : user?.tipoUsuario === 'SECRETARIO'
+                              ? 'Seguimiento del caso desde soporte'
+                              : 'Tu profesional está esperando tu mensaje')}
                         </p>
                         {c.noLeidos > 0 && (
                           <span className="min-w-[18px] h-[18px] rounded-full text-[10px] font-bold text-white flex items-center justify-center px-1 shrink-0"
@@ -248,7 +254,9 @@ export default function MensajesPage() {
                     </div>
                     <Link to={user?.tipoUsuario === 'PROFESIONAL'
                         ? `/profesional/solicitudes/${conv.idSolicitud}`
-                        : '/mis-solicitudes'}
+                        : user?.tipoUsuario === 'SECRETARIO'
+                          ? `/secretaria/solicitudes/${conv.idSolicitud}`
+                          : '/mis-solicitudes'}
                       className="text-[11px] font-semibold hover:underline inline-flex items-center gap-0.5"
                       style={{ color: '#E07A5F' }}>
                       {conv.solicitudTitulo} <ChevronRight className="w-3 h-3" />

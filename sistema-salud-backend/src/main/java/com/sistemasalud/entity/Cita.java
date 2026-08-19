@@ -26,4 +26,6 @@ public class Cita {
     @Column(name = "fecha_respuesta_autorizacion") private LocalDateTime fechaRespuestaAutorizacion;
     @Column(name = "recordatorio_24h_enviado") @Builder.Default private Boolean recordatorio24hEnviado = false;
     @Column(name = "recordatorio_2h_enviado") @Builder.Default private Boolean recordatorio2hEnviado = false;
+    @Column(name = "codigo_pase", length = 16) private String codigoPase;
+    @Column(name = "fecha_presentacion") private LocalDateTime fechaPresentacion;
 }

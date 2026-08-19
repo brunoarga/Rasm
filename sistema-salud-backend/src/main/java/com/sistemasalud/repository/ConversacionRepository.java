@@ -18,4 +18,11 @@ public interface ConversacionRepository extends JpaRepository<Conversacion, Long
     @Query("select c from Conversacion c join c.solicitud s join s.profesional p join p.usuario u " +
             "where u.id = :idUsuario order by coalesce(c.fechaUltimoMensaje, c.fechaCreacion) desc")
     List<Conversacion> findParaProfesional(@Param("idUsuario") Long idUsuario);
+
+    @Query("select c from Conversacion c join c.solicitud s join s.centroSalud cs " +
+            "where cs.id = :idCentro order by coalesce(c.fechaUltimoMensaje, c.fechaCreacion) desc")
+    List<Conversacion> findParaSecretarioCentro(@Param("idCentro") Long idCentro);
+
+    @Query("select c from Conversacion c order by coalesce(c.fechaUltimoMensaje, c.fechaCreacion) desc")
+    List<Conversacion> findParaCentral();
 }

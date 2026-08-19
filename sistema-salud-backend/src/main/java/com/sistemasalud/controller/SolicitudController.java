@@ -2,8 +2,10 @@ package com.sistemasalud.controller;
 
 import com.sistemasalud.dto.request.AsignarTurnoRequest;
 import com.sistemasalud.dto.request.DerivacionRequest;
+import com.sistemasalud.dto.request.SolicitudPresencialRequest;
 import com.sistemasalud.dto.request.SolicitudRequest;
 import com.sistemasalud.dto.response.PerfilPacienteSolicitudResponse;
+import com.sistemasalud.dto.response.PerfilSecretarioResponse;
 import com.sistemasalud.dto.response.SolicitudResponse;
 import com.sistemasalud.entity.CentroSalud;
 import com.sistemasalud.security.UserPrincipal;
@@ -31,6 +33,12 @@ public class SolicitudController {
     @PostMapping @PreAuthorize("hasRole('PACIENTE')")
     public ResponseEntity<SolicitudResponse> crear(@Valid @RequestBody SolicitudRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.status(HttpStatus.CREATED).body(solicitudService.crearSolicitud(u.getId(), r)); }
 
+    @PostMapping("/presencial") @PreAuthorize("hasAnyRole('PROFESIONAL','SECRETARIO','ADMIN')")
+    public ResponseEntity<SolicitudResponse> crearPresencial(@Valid @RequestBody SolicitudPresencialRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.status(HttpStatus.CREATED).body(solicitudService.crearSolicitudPresencial(r, u.getTipoUsuario())); }
+
+    @GetMapping("/perfil-secretario") @PreAuthorize("hasRole('SECRETARIO')")
+    public ResponseEntity<PerfilSecretarioResponse> perfilSecretario(@AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.perfilSecretario(u.getId())); }
+
     @GetMapping
     public ResponseEntity<List<SolicitudResponse>> listar(@AuthenticationPrincipal UserPrincipal u, @RequestParam(required=false) String estado, @RequestParam(required=false) String prioridad) { return ResponseEntity.ok(solicitudService.listarSolicitudes(u.getId(), u.getTipoUsuario(), estado, prioridad)); }
 
@@ -52,7 +60,7 @@ public class SolicitudController {
     public ResponseEntity<SolicitudResponse> derivar(@PathVariable Long id, @Valid @RequestBody DerivacionRequest r) { return ResponseEntity.ok(solicitudService.derivarSolicitud(id, r)); }
 
     @PutMapping("/{id}/derivar-centro/{idCentro}") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
-    public ResponseEntity<SolicitudResponse> derivarCentro(@PathVariable Long id, @PathVariable Long idCentro) { return ResponseEntity.ok(solicitudService.derivarACentro(id, idCentro)); }
+    public ResponseEntity<SolicitudResponse> derivarCentro(@PathVariable Long id, @PathVariable Long idCentro, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.derivarACentro(id, idCentro, u.getId())); }
 
     @PutMapping("/{id}/centro") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<SolicitudResponse> cambiarCentro(@PathVariable Long id, @RequestBody java.util.Map<String, Long> body) { return ResponseEntity.ok(solicitudService.cambiarCentro(id, body.get("idCentroSalud"))); }
@@ -60,8 +68,11 @@ public class SolicitudController {
     @GetMapping("/{id}/centros-disponibles") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<List<CentroSalud>> centrosDisponibles(@PathVariable Long id) { return ResponseEntity.ok(solicitudService.centrosDisponibles(id)); }
 
+    @PostMapping("/{id}/emergencia") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
+    public ResponseEntity<SolicitudResponse> marcarEmergencia(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.marcarEmergencia(id, u.getId())); }
+
     @PostMapping("/{id}/asignar-turno") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
-    public ResponseEntity<SolicitudResponse> asignarTurno(@PathVariable Long id, @Valid @RequestBody AsignarTurnoRequest r) { return ResponseEntity.ok(solicitudService.asignarTurno(id, r)); }
+    public ResponseEntity<SolicitudResponse> asignarTurno(@PathVariable Long id, @Valid @RequestBody AsignarTurnoRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.asignarTurno(id, r, u.getId(), u.getTipoUsuario())); }
 
     @GetMapping("/pendientes") @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','SECRETARIO')")
     public ResponseEntity<List<SolicitudResponse>> pendientes() { return ResponseEntity.ok(solicitudService.listarSolicitudesPendientes()); }
