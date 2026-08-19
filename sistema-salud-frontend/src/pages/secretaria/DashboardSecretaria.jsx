@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus, Clock, ArrowRightLeft } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus, Clock, ArrowRightLeft, Siren } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import useSecretarioPerfil from '../../hooks/useSecretarioPerfil';
@@ -36,6 +36,8 @@ export default function DashboardSecretaria() {
   const [alertas, setAlertas] = useState([]);
   const [alertaSeleccionada, setAlertaSeleccionada] = useState(null);
   const [resolviendo, setResolviendo] = useState(false);
+  const [triaje, setTriaje] = useState([]);
+  const [activando, setActivando] = useState(false);
 
   const referente = !!perfil?.referente;
 
@@ -51,10 +53,31 @@ export default function DashboardSecretaria() {
     }).catch(() => {});
   };
 
+  const cargarTriaje = () => {
+    api.get('/central/triaje').then(r => {
+      setTriaje(r.data || []);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     recargar();
     cargarAlertas();
+    cargarTriaje();
   }, []);
+
+  const activarProtocolo = async (id) => {
+    setActivando(true);
+    try {
+      await api.post(`/solicitudes/${id}/emergencia`);
+      toast.success('Protocolo de emergencia activado');
+      cargarTriaje();
+      recargar();
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'Error al activar el protocolo');
+    } finally {
+      setActivando(false);
+    }
+  };
 
   const resolverAlerta = async (id) => {
     setResolviendo(true);
@@ -181,6 +204,71 @@ export default function DashboardSecretaria() {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50">
                       <CheckCircle className="w-3.5 h-3.5" /> Resolver
                     </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Triaje de Urgencias — solo central */}
+        {!referente && triaje.length > 0 && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-sm font-bold text-amber-900 flex items-center gap-2">
+                <Siren className="w-4 h-4" />
+                Triaje de Urgencias ({triaje.length})
+              </h2>
+              <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full">
+                Prioridad URGENTE / ALTA · sin turno asignado
+              </span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {triaje.map(t => (
+                <div key={t.id} className={`bg-white rounded-lg p-4 space-y-2 border ${t.emergencia ? 'border-red-400' : 'border-amber-200'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">{t.nombrePaciente}</p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {t.nombreCategoria} · {t.titulo}
+                        {t.folio ? ` · Folio ${t.folio}` : ''}
+                      </p>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${t.emergencia ? 'text-white bg-red-600' : t.prioridad === 'URGENTE' ? 'text-red-700 bg-red-100' : 'text-amber-800 bg-amber-100'}`}>
+                        {t.emergencia ? 'EMERGENCIA' : t.prioridad}
+                      </span>
+                      <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{t.estado}</span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-600 space-y-0.5">
+                    <p><span className="font-semibold text-slate-700">Obra social:</span> {t.nombreObraSocial}</p>
+                    <p>
+                      <span className="font-semibold text-slate-700">Contacto:</span>{' '}
+                      {t.telefonoPaciente || '—'}
+                      {t.emailPaciente ? ` · ${t.emailPaciente}` : ''}
+                    </p>
+                    <p>
+                      {t.edadPaciente ? `${t.edadPaciente} años` : ''}
+                      {t.edadPaciente && t.direccionPaciente ? ' · ' : ''}
+                      {t.direccionPaciente || ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    {t.emergencia ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white">
+                        <Siren className="w-3.5 h-3.5" /> Protocolo activado
+                      </span>
+                    ) : (
+                      <button onClick={() => activarProtocolo(t.id)} disabled={activando}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors disabled:opacity-50">
+                        <Siren className="w-3.5 h-3.5" /> Activar Protocolo
+                      </button>
+                    )}
+                    <Link to={`/secretaria/solicitudes/${t.id}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors">
+                      Ver Solicitud <ChevronRight className="w-3 h-3" />
+                    </Link>
                   </div>
                 </div>
               ))}
@@ -480,7 +568,7 @@ function SolicitudRow({ solicitud: s, referente }) {
   if (s.nombreProfesional) asignacion.push(s.nombreProfesional);
   if (s.fechaTurno) asignacion.push(formatearFechaHora(s.fechaTurno, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }));
 
-  const rowBorder = s.prioridad === 'URGENTE' ? 'border-l-2 border-l-red-500' : '';
+  const rowBorder = s.emergencia ? 'border-l-4 border-l-red-600' : s.prioridad === 'URGENTE' ? 'border-l-2 border-l-red-500' : '';
   const botonLabel = referente
     ? (s.estado === 'RECIBIDA' ? 'Aceptar y asignar turno' : s.fechaTurno ? 'Ver Turno' : 'Ver en detalle')
     : (s.idCentroSalud ? 'Ver Derivación' : 'Derivar a Centro');
@@ -511,7 +599,12 @@ function SolicitudRow({ solicitud: s, referente }) {
         )}
       </td>
       <td className="px-4 py-3.5 hidden sm:table-cell">
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${estadoBadge}`}>{estadoLabel}</span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {s.emergencia && (
+            <span className="text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full">EMERGENCIA</span>
+          )}
+          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${estadoBadge}`}>{estadoLabel}</span>
+        </div>
       </td>
       <td className="px-4 py-3.5 text-right whitespace-nowrap">
         <Link to={`/secretaria/solicitudes/${s.id}`}

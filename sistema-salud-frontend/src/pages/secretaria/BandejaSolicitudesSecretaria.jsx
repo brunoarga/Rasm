@@ -157,7 +157,13 @@ function SolicitudCard({ solicitud: s, referente }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm font-bold text-slate-800">{s.titulo}</h3>
-              {s.prioridad === 'URGENTE' && (
+              {s.emergencia && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-white bg-red-600 px-2 py-0.5 rounded-full">
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  EMERGENCIA
+                </span>
+              )}
+              {!s.emergencia && s.prioridad === 'URGENTE' && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
                   <AlertTriangle className="w-2.5 h-2.5" />
                   URGENTE

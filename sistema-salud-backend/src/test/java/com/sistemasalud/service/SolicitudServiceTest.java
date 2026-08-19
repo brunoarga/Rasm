@@ -9,6 +9,7 @@ import com.sistemasalud.entity.*;
 import com.sistemasalud.enums.EstadoSolicitud;
 import com.sistemasalud.enums.OrigenSolicitud;
 import com.sistemasalud.enums.Prioridad;
+import com.sistemasalud.enums.TipoPractica;
 import com.sistemasalud.enums.TipoUsuario;
 import com.sistemasalud.exception.ConsentimientoRequeridoException;
 import com.sistemasalud.exception.EstadoInvalidoException;
@@ -726,5 +727,72 @@ class SolicitudServiceTest {
         assertThat(response.getNombreCentroSalud()).isEqualTo("Hospital B");
         verify(alertaDemoraRepository, never()).saveAll(anyList());
         verify(notificacionService, never()).notificarMensaje(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void marcarEmergencia_sinGuardiaDisponible_deberiaActivarProtocoloYAlertarCrisis() {
+        solicitud.setEstado(EstadoSolicitud.CREADA);
+        solicitud.setPrioridad(Prioridad.MEDIA);
+        Secretario central = Secretario.builder().id(1L).usuario(usuarioProfesional).centroSalud(null).build();
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuarioProfesional));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(centroObraSocialPracticaRepository.findByObraSocialIdAndTipoPracticaAndActivoTrue(eq(1L), eq(TipoPractica.GUARDIA_EMERGENCIA))).thenReturn(List.of());
+        when(secretarioRepository.findAll()).thenReturn(List.of(central));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.marcarEmergencia(1L, 3L);
+
+        assertThat(response.isEmergencia()).isTrue();
+        assertThat(response.getPrioridad()).isEqualTo("URGENTE");
+        assertThat(response.getEstado()).isEqualTo("REVISADA");
+        verify(notificacionService).notificarMensaje(eq(usuarioProfesional), eq("Crisis: no hay guardia disponible"),
+                argThat(m -> m.contains("PROTOCOLO DE EMERGENCIA") && m.contains("Necesito ayuda")), any(Solicitud.class));
+        verify(emailService).enviarEmailNotificacion(eq("garcia@test.com"), eq("Crisis: no hay guardia disponible"), anyString());
+    }
+
+    @Test
+    void marcarEmergencia_conGuardiaDisponible_deberiaDerivarACentro() {
+        CentroSalud guardia = CentroSalud.builder().id(5L).nombre("Hospital de Guardia")
+                .tieneEmergencias(true).activo(true).build();
+        CentroObraSocialPractica relacion = CentroObraSocialPractica.builder()
+                .id(1L).centro(guardia).tipoPractica(TipoPractica.GUARDIA_EMERGENCIA).activo(true).build();
+        solicitud.setEstado(EstadoSolicitud.CREADA);
+        solicitud.setPrioridad(Prioridad.MEDIA);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuarioProfesional));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(centroObraSocialPracticaRepository.findByObraSocialIdAndTipoPracticaAndActivoTrue(eq(1L), eq(TipoPractica.GUARDIA_EMERGENCIA))).thenReturn(List.of(relacion));
+        when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(guardia));
+        when(secretarioRepository.findByCentroSaludId(5L)).thenReturn(List.of());
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.marcarEmergencia(1L, 3L);
+
+        assertThat(response.isEmergencia()).isTrue();
+        assertThat(response.getEstado()).isEqualTo("RECIBIDA");
+        assertThat(response.getIdCentroSalud()).isEqualTo(5L);
+        verify(notificacionService).crearNotificacion(eq(usuarioPaciente), eq("Solicitud derivada a un centro"), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void listarTriaje_deberiaOrdenarEmergenciasPrimero() {
+        Solicitud urgente = Solicitud.builder().id(2L).paciente(paciente).categoria(categoria)
+                .titulo("Urgente").descripcion("Auxilio").estado(EstadoSolicitud.CREADA)
+                .prioridad(Prioridad.URGENTE).emergencia(true)
+                .fechaCreacion(LocalDateTime.now().minusHours(1)).fechaActualizacion(LocalDateTime.now().minusHours(1))
+                .activa(true).build();
+        solicitud.setEstado(EstadoSolicitud.REVISADA);
+        solicitud.setPrioridad(Prioridad.ALTA);
+        solicitud.setFechaCreacion(LocalDateTime.now().minusHours(3));
+        solicitud.setFechaActualizacion(LocalDateTime.now().minusHours(3));
+        when(solicitudRepository.findAll()).thenReturn(List.of(solicitud, urgente));
+
+        List<SolicitudResponse> result = service.listarTriaje();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getId()).isEqualTo(2L);
+        assertThat(result.get(0).isEmergencia()).isTrue();
+        assertThat(result.get(1).getPrioridad()).isEqualTo("ALTA");
     }
 }

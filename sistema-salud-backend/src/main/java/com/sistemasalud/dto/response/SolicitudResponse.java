@@ -19,4 +19,5 @@ public class SolicitudResponse {
     private String emailPaciente; private String telefonoPaciente;
     private Integer edadPaciente; private java.time.LocalDate fechaNacimientoPaciente;
     private boolean activa;
+    private boolean emergencia;
 }

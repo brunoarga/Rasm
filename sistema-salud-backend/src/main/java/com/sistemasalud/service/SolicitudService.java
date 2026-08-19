@@ -717,6 +717,66 @@ return centros;
                 .nombreCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getNombre() : null)
                 .direccionCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getDireccion() : null)
                 .fechaTurno(s.getFechaTurno()).duracionTurno(s.getDuracionTurno()).modalidad(s.getModalidad())
-                .activa(s.getActiva()).build();
+                .activa(s.getActiva()).emergencia(Boolean.TRUE.equals(s.getEmergencia())).build();
+    }
+
+    @Transactional
+    public SolicitudResponse marcarEmergencia(Long idSolicitud, Long idUsuario) {
+        Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
+        Usuario usuarioAccion = idUsuario != null ? usuarioRepository.findById(idUsuario).orElse(null) : null;
+        EstadoSolicitud desde = s.getEstado();
+        s.setEmergencia(true);
+        s.setPrioridad(Prioridad.URGENTE);
+        if (s.getEstado() == EstadoSolicitud.CREADA) s.setEstado(EstadoSolicitud.REVISADA);
+        s.setFechaActualizacion(LocalDateTime.now());
+        s = solicitudRepository.save(s);
+        registrarBitacora(s, usuarioAccion, desde, s.getEstado(),
+                "Protocolo de emergencia activado por la secretaría central (triaje)");
+
+        CentroSalud guardia = buscarGuardiaEmergencia(s);
+        if (guardia != null) {
+            return derivarACentro(idSolicitud, guardia.getId(), idUsuario);
+        }
+        notificarCrisisSinGuardia(s);
+        return mapToResponse(s);
+    }
+
+    private CentroSalud buscarGuardiaEmergencia(Solicitud s) {
+        Paciente p = s.getPaciente();
+        Long idObraSocial = p.getObraSocial() != null ? p.getObraSocial().getId() : 1L;
+        return centroObraSocialPracticaRepository
+                .findByObraSocialIdAndTipoPracticaAndActivoTrue(idObraSocial, TipoPractica.GUARDIA_EMERGENCIA)
+                .stream().map(CentroObraSocialPractica::getCentro)
+                .filter(c -> Boolean.TRUE.equals(c.getTieneEmergencias()) && Boolean.TRUE.equals(c.getActivo()))
+                .findFirst().orElse(null);
+    }
+
+    private void notificarCrisisSinGuardia(Solicitud s) {
+        String msg = "PROTOCOLO DE EMERGENCIA: la solicitud '" + s.getTitulo() + "' (folio "
+                + (s.getFolio() != null ? s.getFolio() : s.getId()) + ") de "
+                + s.getPaciente().getUsuario().getNombreCompleto()
+                + " requiere guardia pero no hay centros de emergencia disponibles para su obra social. Contactar líneas directas.";
+        secretarioRepository.findAll().stream()
+                .filter(sec -> sec.getUsuario() != null && sec.getCentroSalud() == null)
+                .forEach(sec -> {
+                    notificacionService.notificarMensaje(sec.getUsuario(), "Crisis: no hay guardia disponible", msg, s);
+                    emailService.enviarEmailNotificacion(sec.getUsuario().getEmail(),
+                            "Crisis: no hay guardia disponible",
+                            msg + "\n\nContacto del paciente:\n" + datosPacienteContacto(s));
+                });
+    }
+
+    @Transactional(readOnly = true)
+    public List<SolicitudResponse> listarTriaje() {
+        return solicitudRepository.findAll().stream()
+                .filter(s -> Boolean.TRUE.equals(s.getActiva())
+                        && s.getEstado() != EstadoSolicitud.COMPLETADA && s.getEstado() != EstadoSolicitud.CANCELADA
+                        && s.getFechaTurno() == null
+                        && (Boolean.TRUE.equals(s.getEmergencia())
+                                || s.getPrioridad() == Prioridad.URGENTE || s.getPrioridad() == Prioridad.ALTA))
+                .sorted(Comparator.comparing((Solicitud s) -> !Boolean.TRUE.equals(s.getEmergencia()))
+                        .thenComparing(Comparator.comparing(Solicitud::getFechaCreacion)))
+                .map(this::mapToResponse)
+                .toList();
     }
 }

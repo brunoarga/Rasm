@@ -68,6 +68,9 @@ public class SolicitudController {
     @GetMapping("/{id}/centros-disponibles") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<List<CentroSalud>> centrosDisponibles(@PathVariable Long id) { return ResponseEntity.ok(solicitudService.centrosDisponibles(id)); }
 
+    @PostMapping("/{id}/emergencia") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
+    public ResponseEntity<SolicitudResponse> marcarEmergencia(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.marcarEmergencia(id, u.getId())); }
+
     @PostMapping("/{id}/asignar-turno") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<SolicitudResponse> asignarTurno(@PathVariable Long id, @Valid @RequestBody AsignarTurnoRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.asignarTurno(id, r, u.getId(), u.getTipoUsuario())); }
 

@@ -24,6 +24,11 @@ public class CentralController {
         return ResponseEntity.ok(alertaDemoraService.listarAbiertas());
     }
 
+    @GetMapping("/triaje") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
+    public ResponseEntity<List<SolicitudResponse>> triaje() {
+        return ResponseEntity.ok(solicitudService.listarTriaje());
+    }
+
     @PostMapping("/alertas/{id}/resolver") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<Void> resolver(@PathVariable Long id) {
         alertaDemoraService.resolver(id);
