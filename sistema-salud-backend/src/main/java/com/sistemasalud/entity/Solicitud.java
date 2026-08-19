@@ -34,6 +34,6 @@ public class Solicitud {
     @Column(name = "resumen_breve", columnDefinition = "TEXT") private String resumenBreve;
     @Column(name = "archivo_adjunto", length = 255) private String archivoAdjunto;
     @Column(columnDefinition = "TEXT") private String anamnesis;
-    @Column(name = "activa") private Boolean activa = true;
-    @Column(name = "emergencia") private Boolean emergencia = false;
+    @Builder.Default @Column(name = "activa") private Boolean activa = true;
+    @Builder.Default @Column(name = "emergencia") private Boolean emergencia = false;
 }

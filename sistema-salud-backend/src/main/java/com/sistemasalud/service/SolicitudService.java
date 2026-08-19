@@ -81,7 +81,7 @@ public class SolicitudService {
                 .resumenBreve(resumenBreve).anamnesis(anamnesis)
                 .estado(estadoInicial).prioridad(prioridad).origen(origen)
                 .fechaCreacion(LocalDateTime.now()).fechaActualizacion(LocalDateTime.now())
-                .activa(true).build());
+                .activa(true).emergencia(false).build());
         notificacionService.crearNotificacionParaProfesionales("Nueva solicitud" + (prioridad == Prioridad.URGENTE ? " URGENTE" : ""), paciente.getUsuario().getNombreCompleto() + " ha creado: " + solicitud.getTitulo(), solicitud);
         return solicitud;
     }

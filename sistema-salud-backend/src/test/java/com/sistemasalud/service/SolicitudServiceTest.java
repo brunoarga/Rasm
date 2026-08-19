@@ -108,6 +108,26 @@ class SolicitudServiceTest {
     }
 
     @Test
+    void crearSolicitud_deberiaPersistirEmergenciaNoNula() {
+        when(pacienteRepository.findByUsuarioId(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudRequest request = new SolicitudRequest();
+        request.setIdCategoria(1L);
+        request.setTitulo("Necesito ayuda");
+        request.setDescripcion("Me siento mal");
+        request.setEsUrgente(false);
+
+        service.crearSolicitud(1L, request);
+
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository).save(captor.capture());
+        assertThat(captor.getValue().getEmergencia()).isNotNull();
+        assertThat(captor.getValue().getEmergencia()).isFalse();
+    }
+
+    @Test
     void crearSolicitud_urgente_deberiaCrearConEstadoREVISADA() {
         when(pacienteRepository.findByUsuarioId(1L)).thenReturn(Optional.of(paciente));
         when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
