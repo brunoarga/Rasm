@@ -7,9 +7,11 @@ import com.sistemasalud.entity.AlertaDemora;
 import com.sistemasalud.service.AlertaDemoraService;
 import com.sistemasalud.service.AuditoriaRedService;
 import com.sistemasalud.service.SolicitudService;
+import com.sistemasalud.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,9 +46,9 @@ public class CentralController {
     }
 
     @PostMapping("/alertas/{id}/reasignar") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
-    public ResponseEntity<SolicitudResponse> reasignar(@PathVariable Long id, @RequestBody Map<String, Long> body) {
+    public ResponseEntity<SolicitudResponse> reasignar(@PathVariable Long id, @RequestBody Map<String, Long> body, @AuthenticationPrincipal UserPrincipal u) {
         AlertaDemora alerta = alertaDemoraService.obtener(id);
-        SolicitudResponse response = solicitudService.cambiarCentro(alerta.getSolicitud().getId(), body.get("idCentroSalud"));
+        SolicitudResponse response = solicitudService.cambiarCentro(alerta.getSolicitud().getId(), body.get("idCentroSalud"), u.getId());
         alertaDemoraService.marcarReasignada(id);
         return ResponseEntity.ok(response);
     }

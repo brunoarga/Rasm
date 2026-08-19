@@ -5,6 +5,7 @@ import api from '../../services/api';
 import NotificationBell from './NotificationBell';
 import MessagesBell from './MessagesBell';
 import ThemeToggle from './ThemeToggle';
+import useSecretarioPerfil from '../../hooks/useSecretarioPerfil';
 import RevisarSolicitudModal from '../profesional/RevisarSolicitudModal';
 import DetalleTurnoModal from './DetalleTurnoModal';
 import Avatar from '../common/Avatar';
@@ -52,12 +53,7 @@ export default function Navbar() {
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/profesional/perfil" onClick={() => setOpen(false)}>Mi Perfil</Link>
     </>
   ) : user?.tipoUsuario === 'SECRETARIO' ? (
-    <>
-      <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/secretaria/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
-      <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/secretaria/agenda" onClick={() => setOpen(false)}>Agenda</Link>
-      <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/secretaria/solicitudes" onClick={() => setOpen(false)}>Solicitudes</Link>
-      <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/soporte" onClick={() => setOpen(false)}>Soporte</Link>
-    </>
+    <SecretarioMenu onClose={() => setOpen(false)} />
   ) : user?.tipoUsuario === 'ADMIN' ? (
     <>
       <Link className="relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0" to="/admin/dashboard" onClick={() => setOpen(false)}>Dashboard</Link>
@@ -176,4 +172,24 @@ export default function Navbar() {
       )}
     </>
   );
+}
+
+function SecretarioMenu({ onClose }) {
+  const { perfil } = useSecretarioPerfil();
+  const esReferente = !!perfil?.referente;
+  const enlace = cls => `${cls}`;
+  const links = esReferente ? (
+    <>
+      <Link className={enlace('relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0')} to="/secretaria/recepcion" onClick={onClose}>Mesa de Entrada</Link>
+      <Link className={enlace('relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0')} to="/mensajes" onClick={onClose}>Mensajería</Link>
+    </>
+  ) : (
+    <>
+      <Link className={enlace('relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0')} to="/secretaria/dashboard" onClick={onClose}>Dashboard</Link>
+      <Link className={enlace('relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0')} to="/secretaria/agenda" onClick={onClose}>Agenda</Link>
+      <Link className={enlace('relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0')} to="/secretaria/solicitudes" onClick={onClose}>Solicitudes</Link>
+      <Link className={enlace('relative text-sm font-medium text-pizarra-light hover:text-teal-medico transition-colors duration-200 py-2 after:absolute after:bottom-0 after:left-1/2 after:h-[2px] after:w-0 after:bg-teal-medico after:transition-all after:duration-300 after:rounded-full hover:after:w-full hover:after:left-0')} to="/soporte" onClick={onClose}>Soporte</Link>
+    </>
+  );
+  return <>{links}</>;
 }

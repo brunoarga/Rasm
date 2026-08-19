@@ -141,6 +141,18 @@ export default function DetalleSolicitudSecretaria() {
     }
   };
 
+  const handleDevolverCentral = async () => {
+    try {
+      const r = await api.post(`/solicitudes/${id}/devolver-central`);
+      setSol(r.data);
+      setStep('devuelto');
+      toast.success('Solicitud devuelta a la central');
+    } catch (err) {
+      const msg = err.response?.data?.mensaje || err.response?.data?.message || 'Error al devolver a la central';
+      toast.error(typeof msg === 'string' ? msg : 'Error al devolver a la central');
+    }
+  };
+
   const copiarFolio = () => {
     if (!sol?.folio) return;
     navigator.clipboard?.writeText(sol.folio);
@@ -158,9 +170,9 @@ export default function DetalleSolicitudSecretaria() {
     <div className="min-h-screen font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        <Link to="/secretaria/solicitudes"
+        <Link to={referente ? '/secretaria/recepcion' : '/secretaria/solicitudes'}
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-blue-600 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Volver a solicitudes
+          <ArrowLeft className="w-4 h-4" /> {referente ? 'Volver a la Mesa de Entrada' : 'Volver a solicitudes'}
         </Link>
 
         {/* Solicitud Header */}
@@ -216,6 +228,15 @@ export default function DetalleSolicitudSecretaria() {
                     <p className="text-sm font-bold text-sky-900">Derivación recibida en {sol.nombreCentroSalud}</p>
                     <p className="text-xs text-sky-700">Seleccioná el profesional y asigná el turno para confirmar la aceptación.</p>
                   </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-sky-200">
+                  <p className="text-xs text-sky-700">
+                    Si el profesional no puede atender la solicitud, devolvela a la central para que la reasigne.
+                  </p>
+                  <button onClick={handleDevolverCentral}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors shrink-0">
+                    Devolver a la central
+                  </button>
                 </div>
               </div>
             )}
@@ -508,9 +529,28 @@ export default function DetalleSolicitudSecretaria() {
                 <p className="text-sm text-slate-500">
                   {sol.nombreProfesional || 'Profesional'} &middot; {sol.fechaTurno ? formatearFechaHora(sol.fechaTurno) : ''}
                 </p>
-                <Link to="/secretaria/agenda"
+                <Link to={referente ? '/secretaria/recepcion' : '/secretaria/agenda'}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-                  Ver en Agenda
+                  {referente ? 'Volver a la Mesa de Entrada' : 'Ver en Agenda'}
+                </Link>
+              </div>
+            )}
+
+            {step === 'devuelto' && (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center space-y-4">
+                <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
+                  <ArrowLeft className="w-6 h-6 text-amber-600" />
+                </div>
+                <p className="text-lg font-bold text-slate-800">Devuelta a la central</p>
+                <p className="text-sm text-slate-500">
+                  {sol.nombrePaciente} &middot; Folio {sol.folio}
+                </p>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  La solicitud volvió a la central de derivaciones, que la reasignará a otro centro. El paciente sigue sin turno.
+                </p>
+                <Link to="/secretaria/recepcion"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+                  Volver a la Mesa de Entrada
                 </Link>
               </div>
             )}
@@ -527,9 +567,9 @@ export default function DetalleSolicitudSecretaria() {
                 <p className="text-xs text-slate-400 max-w-sm mx-auto">
                   El paciente fue notificado con todos los detalles del turno por email y WhatsApp.
                 </p>
-                <Link to="/secretaria/solicitudes"
+                <Link to={referente ? '/secretaria/recepcion' : '/secretaria/solicitudes'}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-                  Volver a Solicitudes
+                  {referente ? 'Volver a la Mesa de Entrada' : 'Volver a Solicitudes'}
                 </Link>
               </div>
             )}

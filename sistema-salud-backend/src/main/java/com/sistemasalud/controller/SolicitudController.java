@@ -57,19 +57,22 @@ public class SolicitudController {
     public ResponseEntity<SolicitudResponse> asignar(@PathVariable Long id, @PathVariable Long idProfesional) { return ResponseEntity.ok(solicitudService.asignarProfesional(id, idProfesional)); }
 
     @PutMapping("/{id}/derivar") @PreAuthorize("hasAnyRole('PROFESIONAL','ADMIN','SECRETARIO')")
-    public ResponseEntity<SolicitudResponse> derivar(@PathVariable Long id, @Valid @RequestBody DerivacionRequest r) { return ResponseEntity.ok(solicitudService.derivarSolicitud(id, r)); }
+    public ResponseEntity<SolicitudResponse> derivar(@PathVariable Long id, @Valid @RequestBody DerivacionRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.derivarSolicitud(id, r, u.getId())); }
 
     @PutMapping("/{id}/derivar-centro/{idCentro}") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<SolicitudResponse> derivarCentro(@PathVariable Long id, @PathVariable Long idCentro, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.derivarACentro(id, idCentro, u.getId())); }
 
     @PutMapping("/{id}/centro") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
-    public ResponseEntity<SolicitudResponse> cambiarCentro(@PathVariable Long id, @RequestBody java.util.Map<String, Long> body) { return ResponseEntity.ok(solicitudService.cambiarCentro(id, body.get("idCentroSalud"))); }
+    public ResponseEntity<SolicitudResponse> cambiarCentro(@PathVariable Long id, @RequestBody java.util.Map<String, Long> body, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.cambiarCentro(id, body.get("idCentroSalud"), u.getId())); }
 
     @GetMapping("/{id}/centros-disponibles") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<List<CentroSalud>> centrosDisponibles(@PathVariable Long id) { return ResponseEntity.ok(solicitudService.centrosDisponibles(id)); }
 
     @PostMapping("/{id}/emergencia") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<SolicitudResponse> marcarEmergencia(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.marcarEmergencia(id, u.getId())); }
+
+    @PostMapping("/{id}/devolver-central") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
+    public ResponseEntity<SolicitudResponse> devolverCentral(@PathVariable Long id, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.devolverACentral(id, u.getId(), u.getTipoUsuario())); }
 
     @PostMapping("/{id}/asignar-turno") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<SolicitudResponse> asignarTurno(@PathVariable Long id, @Valid @RequestBody AsignarTurnoRequest r, @AuthenticationPrincipal UserPrincipal u) { return ResponseEntity.ok(solicitudService.asignarTurno(id, r, u.getId(), u.getTipoUsuario())); }

@@ -31,6 +31,8 @@ import DashboardSecretaria from './pages/secretaria/DashboardSecretaria';
 import AgendaSecretaria from './pages/secretaria/AgendaSecretaria';
 import BandejaSolicitudesSecretaria from './pages/secretaria/BandejaSolicitudesSecretaria';
 import DetalleSolicitudSecretaria from './pages/secretaria/DetalleSolicitudSecretaria';
+import ReceptionMesaPage from './pages/secretaria/ReceptionMesaPage';
+import useSecretarioPerfil from './hooks/useSecretarioPerfil';
 import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
 import MensajesPage from './pages/mensajes/MensajesPage';
 import SoportePage from './pages/soporte/SoportePage';
@@ -44,6 +46,20 @@ const PrivateRoute = ({ children, roles }) => {
   if (roles && !roles.includes(user.tipoUsuario)) return <Navigate to="/" />;
   return children;
 };
+
+function SoloCentral({ children }) {
+  const { perfil, loading } = useSecretarioPerfil();
+  if (loading) return null;
+  if (perfil?.referente) return <Navigate to="/secretaria/recepcion" replace />;
+  return children;
+}
+
+function SoloReferente({ children }) {
+  const { perfil, loading } = useSecretarioPerfil();
+  if (loading) return null;
+  if (!perfil?.referente) return <Navigate to="/secretaria/dashboard" replace />;
+  return children;
+}
 
 function AppLayout({ home }) {
   const { user } = useAuth();
@@ -77,8 +93,9 @@ function AppLayout({ home }) {
           <Route path="/admin/dashboard" element={<PrivateRoute roles={['ADMIN']}><DashboardAdmin /></PrivateRoute>} />
           <Route path="/admin/usuarios" element={<PrivateRoute roles={['ADMIN']}><GestionUsuarios /></PrivateRoute>} />
           <Route path="/admin/centros" element={<PrivateRoute roles={['ADMIN']}><GestionCentros /></PrivateRoute>} />
-          <Route path="/secretaria/dashboard" element={<PrivateRoute roles={['SECRETARIO']}><DashboardSecretaria /></PrivateRoute>} />
-          <Route path="/secretaria/agenda" element={<PrivateRoute roles={['SECRETARIO']}><AgendaSecretaria /></PrivateRoute>} />
+          <Route path="/secretaria/dashboard" element={<PrivateRoute roles={['SECRETARIO']}><SoloCentral><DashboardSecretaria /></SoloCentral></PrivateRoute>} />
+          <Route path="/secretaria/agenda" element={<PrivateRoute roles={['SECRETARIO']}><SoloCentral><AgendaSecretaria /></SoloCentral></PrivateRoute>} />
+          <Route path="/secretaria/recepcion" element={<PrivateRoute roles={['SECRETARIO']}><SoloReferente><ReceptionMesaPage /></SoloReferente></PrivateRoute>} />
           <Route path="/secretaria/solicitudes" element={<PrivateRoute roles={['SECRETARIO']}><BandejaSolicitudesSecretaria /></PrivateRoute>} />
           <Route path="/secretaria/solicitudes/:id" element={<PrivateRoute roles={['SECRETARIO']}><DetalleSolicitudSecretaria /></PrivateRoute>} />
           <Route path="/notificaciones" element={<PrivateRoute><NotificacionesPage /></PrivateRoute>} />
