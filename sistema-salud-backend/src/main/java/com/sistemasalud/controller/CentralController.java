@@ -1,9 +1,11 @@
 package com.sistemasalud.controller;
 
 import com.sistemasalud.dto.response.AlertaDemoraResponse;
+import com.sistemasalud.dto.response.CentroAuditoriaResponse;
 import com.sistemasalud.dto.response.SolicitudResponse;
 import com.sistemasalud.entity.AlertaDemora;
 import com.sistemasalud.service.AlertaDemoraService;
+import com.sistemasalud.service.AuditoriaRedService;
 import com.sistemasalud.service.SolicitudService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,6 +20,7 @@ public class CentralController {
 
     private final AlertaDemoraService alertaDemoraService;
     private final SolicitudService solicitudService;
+    private final AuditoriaRedService auditoriaRedService;
 
     @GetMapping("/alertas") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<List<AlertaDemoraResponse>> alertas() {
@@ -27,6 +30,11 @@ public class CentralController {
     @GetMapping("/triaje") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
     public ResponseEntity<List<SolicitudResponse>> triaje() {
         return ResponseEntity.ok(solicitudService.listarTriaje());
+    }
+
+    @GetMapping("/auditoria") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")
+    public ResponseEntity<List<CentroAuditoriaResponse>> auditoria() {
+        return ResponseEntity.ok(auditoriaRedService.auditarRed());
     }
 
     @PostMapping("/alertas/{id}/resolver") @PreAuthorize("hasAnyRole('SECRETARIO','ADMIN')")

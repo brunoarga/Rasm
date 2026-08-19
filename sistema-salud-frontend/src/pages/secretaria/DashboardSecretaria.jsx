@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus, Clock, ArrowRightLeft, Siren } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus, Clock, ArrowRightLeft, Siren, Activity, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import useSecretarioPerfil from '../../hooks/useSecretarioPerfil';
@@ -38,6 +38,7 @@ export default function DashboardSecretaria() {
   const [resolviendo, setResolviendo] = useState(false);
   const [triaje, setTriaje] = useState([]);
   const [activando, setActivando] = useState(false);
+  const [auditoria, setAuditoria] = useState([]);
 
   const referente = !!perfil?.referente;
 
@@ -59,10 +60,17 @@ export default function DashboardSecretaria() {
     }).catch(() => {});
   };
 
+  const cargarAuditoria = () => {
+    api.get('/central/auditoria').then(r => {
+      setAuditoria(r.data || []);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     recargar();
     cargarAlertas();
     cargarTriaje();
+    cargarAuditoria();
   }, []);
 
   const activarProtocolo = async (id) => {
@@ -518,6 +526,62 @@ export default function DashboardSecretaria() {
 
           </div>
         </div>
+      {/* Red de Centros — solo central */}
+        {!referente && auditoria.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-600" />
+                Red de Centros · Auditoría de Calidad
+              </h2>
+              <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                {auditoria.length} centros activos
+              </span>
+            </div>
+            <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {auditoria.map(cr => {
+                const sem = semaforo(cr);
+                const borderCls = sem === 'rojo' ? 'border-red-300 bg-red-50' : sem === 'ambar' ? 'border-amber-300 bg-amber-50' : 'border-emerald-300 bg-emerald-50';
+                const dotCls = sem === 'rojo' ? 'bg-red-500' : sem === 'ambar' ? 'bg-amber-500' : 'bg-emerald-500';
+                return (
+                  <div key={cr.idCentroSalud} className={`border rounded-xl p-4 space-y-2 ${borderCls}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-800 truncate flex items-center gap-1.5">
+                          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${dotCls}`} />
+                          {cr.nombreCentroSalud}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">{cr.direccion || 'Sin dirección'}</p>
+                      </div>
+                      {cr.tieneEmergencias && (
+                        <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full">
+                          <ShieldCheck className="w-3 h-3" /> Guardia
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <Metrica label="Derivadas" value={cr.totalDerivadas} />
+                      <Metrica label="% Confirmado" value={cr.pctConfirmados} />
+                      <Metrica label="Prom. turno" value={cr.promedioHorasTurno != null ? `${Math.round(cr.promedioHorasTurno)}h` : '—'} />
+                      <Metrica label="Sin resp." value={cr.noRespuesta} alert={cr.noRespuesta > 0} />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                      <span className="flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" /> Alertas: <strong className={cr.alertasAbiertas > 0 ? 'text-red-600' : 'text-slate-700'}>{cr.alertasAbiertas}</strong>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> Sin actividad: <strong className="text-slate-700">{cr.diasSinActividad != null ? `${cr.diasSinActividad}d` : '—'}</strong>
+                      </span>
+                    </div>
+                    {cr.emailInstitucional && (
+                      <p className="text-[11px] text-slate-500 truncate">✉ {cr.emailInstitucional}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {modalNueva && <NuevaSolicitudPresencialModal onClose={() => setModalNueva(false)} onCreated={recargar} />}
@@ -528,6 +592,21 @@ export default function DashboardSecretaria() {
           onReasignado={() => { cargarAlertas(); recargar(); }}
         />
       )}
+    </div>
+  );
+}
+
+function semaforo(c) {
+  if (c.alertasAbiertas > 0 || c.noRespuesta > 0 || c.pctConfirmados < 50) return 'rojo';
+  if (c.pctConfirmados < 80 || (c.diasSinActividad != null && c.diasSinActividad > 7)) return 'ambar';
+  return 'verde';
+}
+
+function Metrica({ label, value, alert }) {
+  return (
+    <div className="rounded-lg bg-white/80 border border-slate-200 py-1.5 px-1">
+      <p className={`text-base font-bold ${alert ? 'text-red-600' : 'text-slate-800'}`}>{value}</p>
+      <p className="text-[10px] text-slate-500 truncate">{label}</p>
     </div>
   );
 }
