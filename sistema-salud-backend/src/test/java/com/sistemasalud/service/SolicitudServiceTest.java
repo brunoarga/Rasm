@@ -54,6 +54,9 @@ class SolicitudServiceTest {
     @Mock private WhatsAppService whatsAppService;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private AlertaDemoraRepository alertaDemoraRepository;
+    @Mock private PaseService paseService;
+    @Mock private SMSService smsService;
+    @Mock private WebhookService webhookService;
 
     private SolicitudService service;
     private Usuario usuarioPaciente;
@@ -65,7 +68,7 @@ class SolicitudServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService, secretarioRepository, bitacoraRepository, emailService, whatsAppService, usuarioRepository, alertaDemoraRepository);
+        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService, secretarioRepository, bitacoraRepository, emailService, whatsAppService, usuarioRepository, alertaDemoraRepository, paseService, smsService, webhookService);
 
         usuarioPaciente = Usuario.builder().id(1L).nombreCompleto("Juan Perez").email("juan@test.com").tipoUsuario(TipoUsuario.PACIENTE).build();
         usuarioProfesional = Usuario.builder().id(2L).nombreCompleto("Dra. Garcia").email("garcia@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build();
@@ -566,6 +569,8 @@ class SolicitudServiceTest {
         when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
         when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuarioProfesional));
         when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paseService.generarCodigoPase()).thenReturn("PG7K2QX5A1");
+        when(paseService.linkPase("PG7K2QX5A1")).thenReturn("http://localhost:3000/pase/PG7K2QX5A1");
 
         AsignarTurnoRequest request = new AsignarTurnoRequest();
         request.setIdProfesional(1L);
@@ -578,8 +583,12 @@ class SolicitudServiceTest {
         assertThat(response.getEstado()).isEqualTo("ASIGNADA");
         assertThat(response.getFolio()).isEqualTo("NSL-2026-1");
         verify(notificacionService).crearNotificacion(eq(usuarioPaciente), eq("Turno confirmado"),
-                argThat(m -> m.contains("Hospital Publico") && m.contains("2026-09-01") && m.contains("10:00")), any(Solicitud.class));
-        verify(whatsAppService).enviarPlantilla(eq("1155556666"), eq("turno_confirmado"), anyList());
+                argThat(m -> m.contains("Hospital Publico") && m.contains("2026-09-01") && m.contains("10:00")
+                        && m.contains("PG7K2QX5A1") && m.contains("http://localhost:3000/pase/PG7K2QX5A1")), any(Solicitud.class));
+        verify(whatsAppService).enviarPlantillaConEnlace(eq("1155556666"), eq("turno_confirmado"), anyList(),
+                eq("http://localhost:3000/pase/PG7K2QX5A1"));
+        verify(smsService).enviarSms(eq("1155556666"), argThat(m -> m.contains("PG7K2QX5A1")));
+        verify(webhookService).notificarTurno(any(Cita.class));
         verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
     }
 

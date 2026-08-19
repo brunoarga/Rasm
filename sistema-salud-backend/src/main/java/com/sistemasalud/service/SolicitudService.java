@@ -47,6 +47,9 @@ public class SolicitudService {
     private final WhatsAppService whatsAppService;
     private final UsuarioRepository usuarioRepository;
     private final AlertaDemoraRepository alertaDemoraRepository;
+    private final PaseService paseService;
+    private final SMSService smsService;
+    private final WebhookService webhookService;
 
     @Transactional
     public SolicitudResponse crearSolicitud(Long idUsuario, SolicitudRequest request) {
@@ -118,7 +121,8 @@ public class SolicitudService {
             Cita cita = Cita.builder()
                     .solicitud(s).profesional(s.getProfesional()).centroSalud(s.getCentroSalud())
                     .fechaHora(fechaHora).duracion(duracion).modalidad(modalidad)
-                    .estado("PROGRAMADA").build();
+                    .estado("PROGRAMADA").codigoPase(paseService.generarCodigoPase())
+                    .build();
             citaRepository.save(cita);
 
             s.setEstado(EstadoSolicitud.ASIGNADA);
@@ -311,6 +315,7 @@ public class SolicitudService {
                     .solicitud(s).profesional(profTurno).centroSalud(s.getCentroSalud())
                     .fechaHora(fechaHora).duracion(duracion).modalidad(modalidad)
                     .estado("PROGRAMADA").notas(request.getNotas())
+                    .codigoPase(paseService.generarCodigoPase())
                     .build();
             if (request.getTipoPractica() != null) citaNueva.setTipoPractica(TipoPractica.valueOf(request.getTipoPractica()));
             citaRepository.save(citaNueva);
@@ -489,7 +494,8 @@ return centros;
         Cita cita = Cita.builder()
                 .solicitud(s).profesional(prof).centroSalud(centro)
                 .fechaHora(fechaHora).duracion(duracion).modalidad(modalidad)
-                .estado("PROGRAMADA").build();
+                .estado("PROGRAMADA").codigoPase(paseService.generarCodigoPase())
+                .build();
         citaRepository.save(cita);
 
         EstadoSolicitud desde = s.getEstado();
@@ -504,21 +510,33 @@ return centros;
         registrarBitacora(s, usuarioAccion, desde, EstadoSolicitud.ASIGNADA,
                 "El referente asignó el turno " + fechaHora + " con " + (prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "profesional"));
 
-        String msgPaciente = String.format("Tu turno fue confirmado:\n\nProfesional: %s\nFecha: %s\nHora: %s\nCentro: %s\nDirección: %s\nModalidad: %s\nDuración: %d minutos\n\nConcurre con tu documento de identidad y credencial de hospital al menos 15 minutos antes.",
+        String codigoPase = cita.getCodigoPase();
+        String linkPase = paseService.linkPase(codigoPase);
+        String msgPaciente = String.format("Tu turno fue confirmado:\n\nProfesional: %s\nFecha: %s\nHora: %s\nCentro: %s\nDirección: %s\nModalidad: %s\nDuración: %d minutos\n\nCódigo de pase: %s\nComprobante e indicaciones: %s\n\nConcurre con tu documento de identidad y credencial de hospital al menos 15 minutos antes.",
                 prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "Asignado",
                 fechaHora.toLocalDate().toString(),
                 fechaHora.toLocalTime().toString(),
                 centro != null ? centro.getNombre() : "Sin centro",
                 centro != null && centro.getDireccion() != null ? centro.getDireccion() : "—",
                 modalidad.name(),
-                duracion);
+                duracion,
+                codigoPase,
+                linkPase);
         notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Turno confirmado", msgPaciente, s);
-        if (s.getPaciente().getUsuario().getTelefono() != null)
-            whatsAppService.enviarPlantilla(s.getPaciente().getUsuario().getTelefono(), "turno_confirmado",
+        if (s.getPaciente().getUsuario().getTelefono() != null) {
+            whatsAppService.enviarPlantillaConEnlace(s.getPaciente().getUsuario().getTelefono(), "turno_confirmado",
                     List.of(prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "Asignado",
                             fechaHora.toLocalDate().toString(),
                             fechaHora.toLocalTime().toString(),
-                            centro != null ? centro.getNombre() : "Sin centro"));
+                            centro != null ? centro.getNombre() : "Sin centro"),
+                    linkPase);
+            smsService.enviarSms(s.getPaciente().getUsuario().getTelefono(),
+                    "Tu turno fue confirmado en " + (centro != null ? centro.getNombre() : "tu centro") + " para el "
+                            + fechaHora.toLocalDate() + " a las " + fechaHora.toLocalTime().toString().substring(0, 5)
+                            + " con " + (prof.getUsuario() != null ? prof.getUsuario().getNombreCompleto() : "tu profesional")
+                            + ". Comprobante: " + linkPase);
+        }
+        webhookService.notificarTurno(cita);
         mensajeService.abrirConversacion(s);
 
         return mapToResponse(s);
@@ -717,7 +735,14 @@ return centros;
                 .nombreCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getNombre() : null)
                 .direccionCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getDireccion() : null)
                 .fechaTurno(s.getFechaTurno()).duracionTurno(s.getDuracionTurno()).modalidad(s.getModalidad())
-                .activa(s.getActiva()).emergencia(Boolean.TRUE.equals(s.getEmergencia())).build();
+                .activa(s.getActiva()).emergencia(Boolean.TRUE.equals(s.getEmergencia()))
+                .codigoPase(obtenerCodigoPase(s.getId())).build();
+    }
+
+    private String obtenerCodigoPase(Long solicitudId) {
+        List<Cita> citas = citaRepository.findBySolicitudIdOrderByFechaHoraDesc(solicitudId);
+        if (citas == null || citas.isEmpty() || citas.get(0).getCodigoPase() == null) return null;
+        return citas.get(0).getCodigoPase().toUpperCase();
     }
 
     @Transactional

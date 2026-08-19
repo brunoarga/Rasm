@@ -27,6 +27,7 @@ public class TurnoService {
     private final CentroSaludRepository centroSaludRepository;
     private final SolicitudRepository solicitudRepository;
     private final NotificacionService notificacionService;
+    private final PaseService paseService;
 
     @Transactional
     public TurnoResponseDTO agendarProximoTurno(Long turnoAnteriorId, CrearTurnoRequestDTO dto) {
@@ -56,6 +57,7 @@ public class TurnoService {
                 .modalidad(dto.getModalidad() != null ? ModalidadCita.valueOf(dto.getModalidad()) : ModalidadCita.PRESENCIAL)
                 .estado("PROGRAMADA")
                 .notas(dto.getNotas())
+                .codigoPase(paseService.generarCodigoPase())
                 .build();
         if (dto.getTipoPractica() != null) nueva.setTipoPractica(TipoPractica.valueOf(dto.getTipoPractica()));
         nueva = citaRepository.save(nueva);

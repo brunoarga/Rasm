@@ -20,4 +20,5 @@ public class SolicitudResponse {
     private Integer edadPaciente; private java.time.LocalDate fechaNacimientoPaciente;
     private boolean activa;
     private boolean emergencia;
+    private String codigoPase;
 }

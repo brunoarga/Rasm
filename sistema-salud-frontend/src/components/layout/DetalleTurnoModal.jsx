@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { jsPDF } from 'jspdf';
 import {
   X, Stethoscope, Calendar, Clock, Building2, User,
-  FileText, CalendarPlus, ListChecks, Loader2, Download
+  FileText, CalendarPlus, ListChecks, Loader2, Download, QrCode
 } from 'lucide-react';
 import api from '../../services/api';
 import { parsearFechaLocal } from '../../utils/fechas';
@@ -319,6 +319,13 @@ export default function DetalleTurnoModal({ solicitudId, onClose }) {
                 {descargando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                 {descargando ? 'Generando PDF...' : 'Descargar Comprobante de Turno'}
               </button>
+              {s.codigoPase && (
+                <button onClick={() => navigate(`/pase/${s.codigoPase}`)}
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-medico px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90 transition-colors">
+                  <QrCode className="w-4 h-4" />
+                  Pase de guardia / Ver QR
+                </button>
+              )}
               <div className="grid grid-cols-2 gap-2.5">
                 <button onClick={abrirGoogleCalendar} disabled={!tieneTurno}
                   className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">

@@ -34,6 +34,7 @@ import DetalleSolicitudSecretaria from './pages/secretaria/DetalleSolicitudSecre
 import NotificacionesPage from './pages/notificaciones/NotificacionesPage';
 import MensajesPage from './pages/mensajes/MensajesPage';
 import SoportePage from './pages/soporte/SoportePage';
+import PaseGuardiaPage from './pages/pase/PaseGuardiaPage';
 import fondoBg from './assets/fondo.png';
 
 const PrivateRoute = ({ children, roles }) => {
@@ -84,6 +85,7 @@ function AppLayout({ home }) {
           <Route path="/mensajes" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL', 'SECRETARIO']}><MensajesPage /></PrivateRoute>} />
           <Route path="/mensajes/:id" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL', 'SECRETARIO']}><MensajesPage /></PrivateRoute>} />
           <Route path="/soporte" element={<PrivateRoute roles={['PACIENTE', 'PROFESIONAL', 'SECRETARIO', 'ADMIN']}><SoportePage /></PrivateRoute>} />
+          <Route path="/pase/:codigo" element={<PaseGuardiaPage />} />
           <Route path="*" element={<Navigate to={home} />} />
         </Routes>
       </div>

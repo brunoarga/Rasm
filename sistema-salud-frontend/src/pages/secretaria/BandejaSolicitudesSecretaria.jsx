@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import useSecretarioPerfil from '../../hooks/useSecretarioPerfil';
-import { AlertTriangle, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronRight, QrCode, BellRing } from 'lucide-react';
 import { parsearFechaLocal, formatearFecha } from '../../utils/fechas';
 
 const PRIORIDAD_CLS = {
@@ -32,16 +32,75 @@ const ESTADO_LABEL = {
   COMPLETADA: 'Completada',
 };
 
+function sonarAlerta() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.25);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {}
+}
+
 export default function BandejaSolicitudesSecretaria() {
   const { perfil } = useSecretarioPerfil();
+  const navigate = useNavigate();
   const [sols, setSols] = useState([]);
   const [filtro, setFiltro] = useState('todas');
+  const [nuevas, setNuevas] = useState(0);
+  const [destello, setDestello] = useState(false);
+  const [codigoBusqueda, setCodigoBusqueda] = useState('');
 
   const referente = !!perfil?.referente;
+  const prevIdsRef = useRef(new Set());
+  const primerCargaRef = useRef(true);
+
+  const cargar = useCallback(() => {
+    api.get('/solicitudes')
+      .then(r => {
+        const lista = r.data || [];
+        setSols(lista);
+        const ids = new Set(lista.filter(s => s.estado === 'RECIBIDA').map(s => s.id));
+        if (primerCargaRef.current) {
+          primerCargaRef.current = false;
+          prevIdsRef.current = ids;
+          return;
+        }
+        const nuevos = [...ids].filter(id => !prevIdsRef.current.has(id));
+        if (nuevos.length > 0) {
+          setNuevas(n => n + nuevos.length);
+          setDestello(true);
+          sonarAlerta();
+          setTimeout(() => setDestello(false), 6000);
+        }
+        prevIdsRef.current = ids;
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
-    api.get('/solicitudes').then(r => setSols(r.data || [])).catch(() => {});
-  }, []);
+    cargar();
+    const iv = setInterval(cargar, 20000);
+    return () => clearInterval(iv);
+  }, [cargar]);
+
+  const buscarPase = () => {
+    const codigo = codigoBusqueda.trim();
+    if (!codigo) return;
+    navigate(`/pase/${encodeURIComponent(codigo)}`);
+  };
+
+  const cambiarFiltro = (f) => {
+    setFiltro(f);
+    if (f === 'recibidas' || f === 'todas') setNuevas(0);
+  };
 
   const est = s => s.estado?.toUpperCase();
 
@@ -80,14 +139,53 @@ export default function BandejaSolicitudesSecretaria() {
           <span className="text-xs text-slate-500">{fs.length} solicitudes</span>
         </div>
 
+        {referente && (
+          <div className={`rounded-xl border bg-white transition-all ${destello ? 'border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.25)]' : 'border-slate-200'}`}>
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-teal-medico/10 flex items-center justify-center">
+                  <BellRing className="w-4 h-4 text-teal-medico" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Portal Receptor · Mesa de Entrada</p>
+                  <p className="text-xs text-slate-500">Aviso sonoro y visual ante nuevas derivaciones de la red</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
+                {nuevas > 0 && (
+                  <button onClick={() => setNuevas(0)}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-white transition-all ${destello ? 'bg-amber-500 animate-pulse' : 'bg-red-600'}`}>
+                    <BellRing className="w-3.5 h-3.5" />
+                    {nuevas} {nuevas === 1 ? 'nueva derivación' : 'nuevas derivaciones'}
+                  </button>
+                )}
+                <div className="flex items-center gap-2">
+                  <input
+                    value={codigoBusqueda}
+                    onChange={e => setCodigoBusqueda(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') buscarPase(); }}
+                    placeholder="Código de pase / QR"
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm w-44 focus:outline-none focus:ring-2 focus:ring-teal-medico/40"
+                  />
+                  <button onClick={buscarPase}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-teal-medico px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-colors">
+                    <QrCode className="w-4 h-4" />
+                    Buscar pase
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 flex-wrap">
           {referente ? (
             <>
-              <button onClick={() => setFiltro('todas')}
+              <button onClick={() => cambiarFiltro('todas')}
                 className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${filtro === 'todas' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-blue-500'}`}>
                 Todas
               </button>
-              <button onClick={() => setFiltro('recibidas')}
+              <button onClick={() => cambiarFiltro('recibidas')}
                 className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${filtro === 'recibidas' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-blue-500'}`}>
                 Recibidas
               </button>
@@ -98,7 +196,7 @@ export default function BandejaSolicitudesSecretaria() {
             </>
           ) : (
             <>
-              <button onClick={() => setFiltro('todas')}
+              <button onClick={() => cambiarFiltro('todas')}
                 className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${filtro === 'todas' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-blue-500'}`}>
                 Todas
               </button>
@@ -106,7 +204,7 @@ export default function BandejaSolicitudesSecretaria() {
                 className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${filtro === 'por-derivar' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-blue-500'}`}>
                 Por Derivar
               </button>
-              <button onClick={() => setFiltro('recibidas')}
+              <button onClick={() => cambiarFiltro('recibidas')}
                 className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${filtro === 'recibidas' ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:border-blue-500'}`}>
                 Recibidas
               </button>
