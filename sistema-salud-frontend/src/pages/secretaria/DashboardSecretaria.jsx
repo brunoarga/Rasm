@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus, Clock } from 'lucide-react';
+import { AlertTriangle, Building2, CheckCircle, TrendingUp, TrendingDown, ChevronRight, ExternalLink, Calendar, Inbox, CalendarDays, UserPlus, Clock, ArrowRightLeft } from 'lucide-react';
+import { toast } from 'react-toastify';
 import api from '../../services/api';
 import useSecretarioPerfil from '../../hooks/useSecretarioPerfil';
 import { formatearFechaHora } from '../../utils/fechas';
 import NuevaSolicitudPresencialModal from '../../components/secretaria/NuevaSolicitudPresencialModal';
+import ReasignarCentroModal from '../../components/secretaria/ReasignarCentroModal';
 
 const ESTADO_LABEL = {
   CREADA: 'Pendiente',
@@ -31,6 +33,9 @@ export default function DashboardSecretaria() {
   const [todas, setTodas] = useState([]);
   const [filtro, setFiltro] = useState('todas');
   const [modalNueva, setModalNueva] = useState(false);
+  const [alertas, setAlertas] = useState([]);
+  const [alertaSeleccionada, setAlertaSeleccionada] = useState(null);
+  const [resolviendo, setResolviendo] = useState(false);
 
   const referente = !!perfil?.referente;
 
@@ -40,9 +45,30 @@ export default function DashboardSecretaria() {
     }).catch(() => {});
   };
 
+  const cargarAlertas = () => {
+    api.get('/central/alertas').then(r => {
+      setAlertas(r.data || []);
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     recargar();
+    cargarAlertas();
   }, []);
+
+  const resolverAlerta = async (id) => {
+    setResolviendo(true);
+    try {
+      await api.post(`/central/alertas/${id}/resolver`);
+      toast.success('Alerta resuelta');
+      cargarAlertas();
+      recargar();
+    } catch (err) {
+      toast.error(err.response?.data?.mensaje || 'Error al resolver la alerta');
+    } finally {
+      setResolviendo(false);
+    }
+  };
 
   const urg = s => s.prioridad?.toUpperCase();
   const est = s => s.estado?.toUpperCase();
@@ -105,6 +131,62 @@ export default function DashboardSecretaria() {
             {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </span>
         </div>
+
+        {/* Alertas por Demora — solo central */}
+        {!referente && alertas.length > 0 && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-sm font-bold text-red-800 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                Alertas por Demora ({alertas.length})
+              </h2>
+              <span className="text-[11px] font-semibold text-red-700 bg-red-100 border border-red-200 px-2 py-0.5 rounded-full">
+                Derivaciones sin turno asignado
+              </span>
+            </div>
+            <div className="grid md:grid-cols-2 gap-3">
+              {alertas.map(a => (
+                <div key={a.id} className="bg-white border border-red-200 rounded-lg p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 truncate">{a.nombrePaciente}</p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {a.titulo}
+                        {a.folio ? ` · Folio ${a.folio}` : ''}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-[11px] font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                      {a.horasDemora}h
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 space-y-0.5">
+                    <p><span className="font-semibold text-slate-700">Centro:</span> {a.nombreCentroSalud || '—'}</p>
+                    <p>
+                      <span className="font-semibold text-slate-700">Contacto:</span>{' '}
+                      {a.telefonoPaciente || '—'}
+                      {a.emailPaciente ? ` · ${a.emailPaciente}` : ''}
+                    </p>
+                    <p>
+                      {a.edadPaciente ? `${a.edadPaciente} años` : ''}
+                      {a.edadPaciente && a.direccionPaciente ? ' · ' : ''}
+                      {a.direccionPaciente || ''}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <button onClick={() => setAlertaSeleccionada(a)}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 transition-colors">
+                      <ArrowRightLeft className="w-3.5 h-3.5" /> Reasignar
+                    </button>
+                    <button onClick={() => resolverAlerta(a.id)} disabled={resolviendo}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50">
+                      <CheckCircle className="w-3.5 h-3.5" /> Resolver
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* KPIs Operativos */}
         {referente ? (
@@ -351,6 +433,13 @@ export default function DashboardSecretaria() {
       </div>
 
       {modalNueva && <NuevaSolicitudPresencialModal onClose={() => setModalNueva(false)} onCreated={recargar} />}
+      {alertaSeleccionada && (
+        <ReasignarCentroModal
+          alerta={alertaSeleccionada}
+          onClose={() => setAlertaSeleccionada(null)}
+          onReasignado={() => { cargarAlertas(); recargar(); }}
+        />
+      )}
     </div>
   );
 }

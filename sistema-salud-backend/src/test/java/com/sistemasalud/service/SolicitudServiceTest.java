@@ -52,6 +52,7 @@ class SolicitudServiceTest {
     @Mock private EmailService emailService;
     @Mock private WhatsAppService whatsAppService;
     @Mock private UsuarioRepository usuarioRepository;
+    @Mock private AlertaDemoraRepository alertaDemoraRepository;
 
     private SolicitudService service;
     private Usuario usuarioPaciente;
@@ -63,7 +64,7 @@ class SolicitudServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService, secretarioRepository, bitacoraRepository, emailService, whatsAppService, usuarioRepository);
+        service = new SolicitudService(solicitudRepository, pacienteRepository, profesionalRepository, categoriaAyudaRepository, centroSaludRepository, centroObraSocialPracticaRepository, citaRepository, diarioSintomasRepository, registroSintomatologiaRepository, notificacionService, mensajeService, secretarioRepository, bitacoraRepository, emailService, whatsAppService, usuarioRepository, alertaDemoraRepository);
 
         usuarioPaciente = Usuario.builder().id(1L).nombreCompleto("Juan Perez").email("juan@test.com").tipoUsuario(TipoUsuario.PACIENTE).build();
         usuarioProfesional = Usuario.builder().id(2L).nombreCompleto("Dra. Garcia").email("garcia@test.com").tipoUsuario(TipoUsuario.PROFESIONAL).build();
@@ -672,5 +673,58 @@ class SolicitudServiceTest {
 
         assertThatThrownBy(() -> service.crearSolicitudPresencial(request, "SECRETARIO"))
                 .isInstanceOf(SolicitudInvalidaException.class);
+    }
+
+    @Test
+    void cambiarCentro_reasignacion_deberiaCerrarAlertasYReasignar() {
+        CentroSalud centroA = CentroSalud.builder().id(5L).nombre("Hospital A").build();
+        CentroSalud centroB = CentroSalud.builder().id(6L).nombre("Hospital B").build();
+        Secretario referenteB = Secretario.builder().id(2L)
+                .usuario(Usuario.builder().id(11L).nombreCompleto("Referente B").email("refb@test.com").tipoUsuario(TipoUsuario.SECRETARIO).build())
+                .centroSalud(centroB).build();
+        AlertaDemora alerta = AlertaDemora.builder().id(1L).solicitud(solicitud).centroSalud(centroA)
+                .estado("ABIERTA").tipo("DEMORA").fechaGenerada(LocalDateTime.now().minusHours(30)).build();
+
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(centroA);
+        solicitud.setFolio("NSL-2026-1");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(centroSaludRepository.findById(6L)).thenReturn(Optional.of(centroB));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(secretarioRepository.findByCentroSaludId(6L)).thenReturn(List.of(referenteB));
+        when(alertaDemoraRepository.findBySolicitudIdAndEstado(1L, "ABIERTA")).thenReturn(List.of(alerta));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.cambiarCentro(1L, 6L);
+
+        assertThat(response.getEstado()).isEqualTo("RECIBIDA");
+        assertThat(response.getNombreCentroSalud()).isEqualTo("Hospital B");
+        assertThat(response.getFolio()).isEqualTo("NSL-2026-1");
+        verify(alertaDemoraRepository).saveAll(anyList());
+        assertThat(alerta.getEstado()).isEqualTo("RESUELTA");
+        assertThat(alerta.getFechaResuelta()).isNotNull();
+        verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
+        verify(notificacionService).notificarMensaje(eq(referenteB.getUsuario()), anyString(), anyString(), any(Solicitud.class));
+        verify(notificacionService).crearNotificacion(eq(usuarioPaciente), eq("Nuevo centro asignado"), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void cambiarCentro_solicitudAsignada_noReseteaEstado() {
+        CentroSalud centroA = CentroSalud.builder().id(5L).nombre("Hospital A").build();
+        CentroSalud centroB = CentroSalud.builder().id(6L).nombre("Hospital B").build();
+        solicitud.setEstado(EstadoSolicitud.ASIGNADA);
+        solicitud.setCentroSalud(centroA);
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(centroSaludRepository.findById(6L)).thenReturn(Optional.of(centroB));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(alertaDemoraRepository.findBySolicitudIdAndEstado(1L, "ABIERTA")).thenReturn(List.of());
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.cambiarCentro(1L, 6L);
+
+        assertThat(response.getEstado()).isEqualTo("ASIGNADA");
+        assertThat(response.getNombreCentroSalud()).isEqualTo("Hospital B");
+        verify(alertaDemoraRepository, never()).saveAll(anyList());
+        verify(notificacionService, never()).notificarMensaje(any(Usuario.class), anyString(), anyString(), any(Solicitud.class));
     }
 }

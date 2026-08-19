@@ -46,6 +46,7 @@ public class SolicitudService {
     private final EmailService emailService;
     private final WhatsAppService whatsAppService;
     private final UsuarioRepository usuarioRepository;
+    private final AlertaDemoraRepository alertaDemoraRepository;
 
     @Transactional
     public SolicitudResponse crearSolicitud(Long idUsuario, SolicitudRequest request) {
@@ -420,8 +421,40 @@ public class SolicitudService {
     public SolicitudResponse cambiarCentro(Long idSolicitud, Long idCentroSalud) {
         Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
         CentroSalud c = centroSaludRepository.findById(idCentroSalud).orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado"));
-        s.setCentroSalud(c); s.setFechaActualizacion(LocalDateTime.now());
-        return mapToResponse(solicitudRepository.save(s));
+        EstadoSolicitud desde = s.getEstado();
+        boolean reasignada = desde == EstadoSolicitud.CREADA || desde == EstadoSolicitud.REVISADA || desde == EstadoSolicitud.RECIBIDA;
+        s.setCentroSalud(c);
+        if (reasignada) {
+            s.setEstado(EstadoSolicitud.RECIBIDA);
+            if (s.getFolio() == null || s.getFolio().isBlank()) s.setFolio(generarFolio(s));
+        }
+        s.setFechaActualizacion(LocalDateTime.now());
+        s = solicitudRepository.save(s);
+
+        registrarBitacora(s, null, desde, s.getEstado(),
+                reasignada ? "La secretaría reasignó la solicitud al centro " + c.getNombre() + " (folio " + s.getFolio() + ")"
+                        : "Se cambió el centro asignado a " + c.getNombre());
+
+        cerrarAlertasAbiertas(s.getId());
+
+        if (reasignada) {
+            alertaInstitucionalAlCentro(c, s);
+            notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Nuevo centro asignado",
+                    "Tu solicitud '" + s.getTitulo() + "' fue reasignada al centro " + c.getNombre()
+                            + ". El centro te contactará para asignarte el turno.", s);
+        }
+        return mapToResponse(s);
+    }
+
+    private void cerrarAlertasAbiertas(Long solicitudId) {
+        List<AlertaDemora> abiertas = alertaDemoraRepository.findBySolicitudIdAndEstado(solicitudId, "ABIERTA");
+        if (!abiertas.isEmpty()) {
+            abiertas.forEach(a -> {
+                a.setEstado("RESUELTA");
+                a.setFechaResuelta(LocalDateTime.now());
+            });
+            alertaDemoraRepository.saveAll(abiertas);
+        }
     }
 
     @Transactional(readOnly = true)
