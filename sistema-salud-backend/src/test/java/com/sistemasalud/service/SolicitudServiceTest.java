@@ -22,6 +22,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -508,6 +509,9 @@ class SolicitudServiceTest {
                 .centroSalud(centro).build();
         solicitud.setEstado(EstadoSolicitud.CREADA);
         solicitud.setFechaCreacion(LocalDateTime.now());
+        usuarioPaciente.setTelefono("1155554444");
+        usuarioPaciente.setDireccion("Av. Colon 123");
+        paciente.setFechaNacimiento(LocalDate.of(1990, 5, 15));
         when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
         when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(centro));
         when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -519,11 +523,20 @@ class SolicitudServiceTest {
 
         assertThat(response.getEstado()).isEqualTo("RECIBIDA");
         assertThat(response.getFolio()).startsWith("NSL-");
+        assertThat(response.getEmailPaciente()).isEqualTo("juan@test.com");
+        assertThat(response.getTelefonoPaciente()).isEqualTo("1155554444");
+        assertThat(response.getEdadPaciente()).isNotNull();
+        assertThat(response.getDireccionPaciente()).isEqualTo("Av. Colon 123");
         ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
         verify(solicitudRepository, atLeastOnce()).save(captor.capture());
         assertThat(captor.getAllValues()).anyMatch(s -> s.getFolio() != null && s.getFolio().contains("NSL-"));
         verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
-        verify(notificacionService).notificarMensaje(eq(referente.getUsuario()), anyString(), anyString(), any(Solicitud.class));
+        ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificacionService).notificarMensaje(eq(referente.getUsuario()), anyString(), msgCaptor.capture(), any(Solicitud.class));
+        String alerta = msgCaptor.getValue();
+        assertThat(alerta).contains("juan@test.com").contains("1155554444")
+                .contains("Av. Colon 123").contains("Edad: ").contains("años")
+                .contains("Juan Perez");
         verify(emailService).enviarEmailNotificacion(eq("recepcion@hosp.com"), anyString(), anyString());
         verify(whatsAppService).enviarPlantilla(eq("1155550001"), eq("nueva_derivacion"), anyList());
     }

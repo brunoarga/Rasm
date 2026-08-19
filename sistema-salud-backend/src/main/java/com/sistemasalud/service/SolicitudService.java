@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -361,12 +362,18 @@ public class SolicitudService {
         return "NSL-" + s.getFechaCreacion().getYear() + "-" + s.getId();
     }
 
+    private Integer calcularEdad(LocalDate fechaNacimiento) {
+        if (fechaNacimiento == null) return null;
+        return Period.between(fechaNacimiento, LocalDate.now()).getYears();
+    }
+
     private void alertaInstitucionalAlCentro(CentroSalud c, Solicitud s) {
         String folio = s.getFolio();
         String categoria = s.getCategoria() != null ? s.getCategoria().getNombre() : "";
         String mensaje = "Derivación recibida - Folio " + folio + " (categoría: " + categoria + ")";
         String cuerpoReferente = "Recibiste una nueva derivación en " + c.getNombre()
-                + " con folio " + folio + ". Ingresá a la plataforma para aceptarla y asignar el turno al paciente.";
+                + " con folio " + folio + ". Ingresá a la plataforma para aceptarla y asignar el turno al paciente.\n\n"
+                + "Datos del paciente:\n" + datosPacienteContacto(s);
 
         List<Secretario> referentes = secretarioRepository.findByCentroSaludId(c.getId());
         for (Secretario sec : referentes) {
@@ -379,6 +386,24 @@ public class SolicitudService {
 
         if (c.getTelefonoInstitucional() != null && !c.getTelefonoInstitucional().isBlank())
             whatsAppService.enviarPlantilla(c.getTelefonoInstitucional(), "nueva_derivacion", List.of(folio, categoria));
+    }
+
+    private String datosPacienteContacto(Solicitud s) {
+        StringBuilder sb = new StringBuilder();
+        String nombre = s.getPaciente().getUsuario().getNombreCompleto();
+        String doc = s.getPaciente().getTipoDocumento() != null ? s.getPaciente().getTipoDocumento() + " " + s.getPaciente().getNumDocumento() : s.getPaciente().getNumDocumento();
+        String email = s.getPaciente().getUsuario().getEmail();
+        String telefono = s.getPaciente().getUsuario().getTelefono();
+        String direccion = s.getPaciente().getUsuario().getDireccion();
+        Integer edad = calcularEdad(s.getPaciente().getFechaNacimiento());
+
+        if (nombre != null && !nombre.isBlank()) sb.append("· Nombre: ").append(nombre).append('\n');
+        if (edad != null) sb.append("· Edad: ").append(edad).append(" años\n");
+        if (doc != null && !doc.isBlank()) sb.append("· Documento: ").append(doc.trim()).append('\n');
+        if (email != null && !email.isBlank()) sb.append("· Email: ").append(email).append('\n');
+        if (telefono != null && !telefono.isBlank()) sb.append("· Teléfono: ").append(telefono).append('\n');
+        if (direccion != null && !direccion.isBlank()) sb.append("· Domicilio: ").append(direccion).append('\n');
+        return sb.toString().stripTrailing();
     }
 
     private void registrarBitacora(Solicitud s, Usuario usuario, EstadoSolicitud desde, EstadoSolicitud hasta, String detalle) {
@@ -649,6 +674,10 @@ return centros;
                 .resumenBreve(s.getResumenBreve()).archivoAdjunto(s.getArchivoAdjunto()).anamnesis(s.getAnamnesis())
                 .direccionPaciente(s.getPaciente().getUsuario().getDireccion())
                 .tipoDocumento(s.getPaciente().getTipoDocumento()).numDocumento(s.getPaciente().getNumDocumento())
+                .emailPaciente(s.getPaciente().getUsuario().getEmail())
+                .telefonoPaciente(s.getPaciente().getUsuario().getTelefono())
+                .edadPaciente(calcularEdad(s.getPaciente().getFechaNacimiento()))
+                .fechaNacimientoPaciente(s.getPaciente().getFechaNacimiento())
                 .estado(s.getEstado().name()).origen(s.getOrigen() != null ? s.getOrigen().name() : "ONLINE").prioridad(s.getPrioridad().name())
                 .fechaCreacion(s.getFechaCreacion()).fechaActualizacion(s.getFechaActualizacion())
                 .idCentroSalud(s.getCentroSalud() != null ? s.getCentroSalud().getId() : null)

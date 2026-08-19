@@ -16,5 +16,7 @@ public class SolicitudResponse {
     private LocalDateTime fechaTurno; private Integer duracionTurno; private String modalidad;
     private String resumenBreve; private String archivoAdjunto; private String anamnesis;
     private String direccionPaciente; private String tipoDocumento; private String numDocumento;
+    private String emailPaciente; private String telefonoPaciente;
+    private Integer edadPaciente; private java.time.LocalDate fechaNacimientoPaciente;
     private boolean activa;
 }

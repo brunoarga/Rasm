@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import useSecretarioPerfil from '../../hooks/useSecretarioPerfil';
 import {
   AlertTriangle, ArrowLeft, CheckCircle, User, Building2, Calendar,
-  MapPin, Pencil, Copy
+  MapPin, Pencil, Copy, Mail, Phone
 } from 'lucide-react';
 import { parsearFechaLocal, formatearFechaHora, hoyISO } from '../../utils/fechas';
 
@@ -555,12 +555,39 @@ export default function DetalleSolicitudSecretaria() {
                   </div>
                 </div>
               )}
+              {sol.edadPaciente != null && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Edad</p>
+                    <p className="font-medium text-slate-700">{sol.edadPaciente} años</p>
+                  </div>
+                </div>
+              )}
               {sol.direccionPaciente && (
                 <div className="flex items-center gap-3">
                   <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
                   <div>
                     <p className="text-xs text-slate-500">Dirección</p>
                     <p className="font-medium text-slate-700">{sol.direccionPaciente}</p>
+                  </div>
+                </div>
+              )}
+              {sol.emailPaciente && (
+                <div className="flex items-center gap-3">
+                  <Mail className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Email</p>
+                    <p className="font-medium text-slate-700 break-all">{sol.emailPaciente}</p>
+                  </div>
+                </div>
+              )}
+              {sol.telefonoPaciente && (
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-slate-400 shrink-0" />
+                  <div>
+                    <p className="text-xs text-slate-500">Teléfono</p>
+                    <p className="font-medium text-slate-700">{sol.telefonoPaciente}</p>
                   </div>
                 </div>
               )}
