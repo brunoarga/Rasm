@@ -40,6 +40,9 @@ services:
       SERVER_PORT: "8080"
       SERVER_CONTEXT_PATH: /api
       SPRING_PROFILES_ACTIVE: docker
+      PASE_BASE_URL: ${PASE_BASE_URL:-https://rasm.iunex.com.ar}
+      SMS_ENABLED: ${SMS_ENABLED:-false}
+      WEBHOOK_ENABLED: ${WEBHOOK_ENABLED:-false}
     ports:
       - "8080:8080"
 
@@ -47,14 +50,14 @@ services:
     build:
       context: ./sistema-salud-frontend
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: https://rasm.iunex.com.ar/api
     container_name: sistema-salud-frontend
     restart: unless-stopped
     depends_on:
       - backend
     ports:
       - "3000:80"
-    environment:
-      REACT_APP_API_URL: http://localhost:8080/api
 
 volumes:
   mysql_data:
