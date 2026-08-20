@@ -30,6 +30,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/centros/cercanos").permitAll()
                 .requestMatchers(HttpMethod.GET, "/obras-sociales").permitAll()
                 .requestMatchers(HttpMethod.GET, "/turnos/pase/**").permitAll()
+                .requestMatchers("/mock/**").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
                 .anyRequest().authenticated()
             )

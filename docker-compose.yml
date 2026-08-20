@@ -43,6 +43,7 @@ services:
       PASE_BASE_URL: ${PASE_BASE_URL:-https://rasm.iunex.com.ar}
       SMS_ENABLED: ${SMS_ENABLED:-false}
       WEBHOOK_ENABLED: ${WEBHOOK_ENABLED:-false}
+      WEBHOOK_MOCK_ENABLED: ${WEBHOOK_MOCK_ENABLED:-false}
     ports:
       - "8080:8080"
 
