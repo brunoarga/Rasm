@@ -81,7 +81,7 @@ public class SolicitudService {
                 .resumenBreve(resumenBreve).anamnesis(anamnesis)
                 .estado(estadoInicial).prioridad(prioridad).origen(origen)
                 .fechaCreacion(LocalDateTime.now()).fechaActualizacion(LocalDateTime.now())
-                .activa(true).build());
+                .activa(true).emergencia(false).build());
         notificacionService.crearNotificacionParaProfesionales("Nueva solicitud" + (prioridad == Prioridad.URGENTE ? " URGENTE" : ""), paciente.getUsuario().getNombreCompleto() + " ha creado: " + solicitud.getTitulo(), solicitud);
         return solicitud;
     }
@@ -281,6 +281,12 @@ public class SolicitudService {
 
     @Transactional
     public SolicitudResponse derivarSolicitud(Long idSolicitud, DerivacionRequest request) {
+        return derivarSolicitud(idSolicitud, request, null);
+    }
+
+    @Transactional
+    public SolicitudResponse derivarSolicitud(Long idSolicitud, DerivacionRequest request, Long idUsuario) {
+        validarSecretarioNoReferente(idUsuario);
         Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
         Profesional nuevoProf = null;
         String nombreDestino = null;
@@ -346,6 +352,7 @@ public class SolicitudService {
         Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
         CentroSalud c = centroSaludRepository.findById(idCentroSalud).orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado"));
 
+        validarSecretarioNoReferente(idUsuario);
         EstadoSolicitud desde = s.getEstado();
         s.setCentroSalud(c);
         s.setEstado(EstadoSolicitud.RECIBIDA);
@@ -361,6 +368,45 @@ public class SolicitudService {
         notificacionService.crearNotificacion(s.getPaciente().getUsuario(), "Solicitud derivada a un centro",
                 "Tu solicitud '" + s.getTitulo() + "' fue derivada al centro " + c.getNombre()
                         + " con folio " + s.getFolio() + ". El centro te contactará para asignarte el turno.", s);
+        return mapToResponse(s);
+    }
+
+    private void validarSecretarioNoReferente(Long idUsuario) {
+        if (idUsuario == null) return;
+        secretarioRepository.findByUsuarioId(idUsuario).ifPresent(sec -> {
+            if (sec.getCentroSalud() != null)
+                throw new AccesoDenegadoException("El referente del centro no puede reasignar a otros centros; devuelva la solicitud a la central");
+        });
+    }
+
+    @Transactional
+    public SolicitudResponse devolverACentral(Long idSolicitud, Long idUsuario, String tipoUsuario) {
+        Solicitud s = solicitudRepository.findById(idSolicitud)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
+        if (s.getEstado() != EstadoSolicitud.RECIBIDA && s.getEstado() != EstadoSolicitud.DERIVADA)
+            throw new EstadoInvalidoException("Solo se puede devolver a la central una solicitud aún sin turno asignado");
+        if (s.getFechaTurno() != null)
+            throw new EstadoInvalidoException("La solicitud ya tiene turno asignado; no puede devolverse a la central");
+
+        if (!"ADMIN".equals(tipoUsuario)) {
+            Secretario sec = secretarioRepository.findByUsuarioId(idUsuario)
+                    .orElseThrow(() -> new AccesoDenegadoException("No tiene acceso a esta solicitud"));
+            if (sec.getCentroSalud() == null)
+                throw new AccesoDenegadoException("Solo el referente del centro puede devolver la solicitud");
+            if (s.getCentroSalud() == null || !s.getCentroSalud().getId().equals(sec.getCentroSalud().getId()))
+                throw new AccesoDenegadoException("Solo el referente del centro destino puede devolver la solicitud");
+        }
+
+        String nombreCentro = s.getCentroSalud() != null ? s.getCentroSalud().getNombre() : "el centro";
+        EstadoSolicitud desde = s.getEstado();
+        s.setCentroSalud(null);
+        s.setEstado(EstadoSolicitud.CREADA);
+        s.setFechaActualizacion(LocalDateTime.now());
+        s = solicitudRepository.save(s);
+
+        Usuario usuarioAccion = idUsuario != null ? usuarioRepository.findById(idUsuario).orElse(null) : null;
+        registrarBitacora(s, usuarioAccion, desde, EstadoSolicitud.CREADA,
+                "El centro " + nombreCentro + " devolvió la solicitud a la central para reasignación (folio " + s.getFolio() + ")");
         return mapToResponse(s);
     }
 
@@ -424,6 +470,12 @@ public class SolicitudService {
 
     @Transactional
     public SolicitudResponse cambiarCentro(Long idSolicitud, Long idCentroSalud) {
+        return cambiarCentro(idSolicitud, idCentroSalud, null);
+    }
+
+    @Transactional
+    public SolicitudResponse cambiarCentro(Long idSolicitud, Long idCentroSalud, Long idUsuario) {
+        validarSecretarioNoReferente(idUsuario);
         Solicitud s = solicitudRepository.findById(idSolicitud).orElseThrow(() -> new RecursoNoEncontradoException("Solicitud no encontrada"));
         CentroSalud c = centroSaludRepository.findById(idCentroSalud).orElseThrow(() -> new RecursoNoEncontradoException("Centro no encontrado"));
         EstadoSolicitud desde = s.getEstado();

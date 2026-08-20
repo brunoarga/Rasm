@@ -11,6 +11,7 @@ import com.sistemasalud.enums.OrigenSolicitud;
 import com.sistemasalud.enums.Prioridad;
 import com.sistemasalud.enums.TipoPractica;
 import com.sistemasalud.enums.TipoUsuario;
+import com.sistemasalud.exception.AccesoDenegadoException;
 import com.sistemasalud.exception.ConsentimientoRequeridoException;
 import com.sistemasalud.exception.EstadoInvalidoException;
 import com.sistemasalud.exception.RecursoNoEncontradoException;
@@ -105,6 +106,26 @@ class SolicitudServiceTest {
         assertThat(response.getPrioridad()).isEqualTo("MEDIA");
         verify(solicitudRepository).save(any(Solicitud.class));
         verify(notificacionService).crearNotificacionParaProfesionales(anyString(), anyString(), any(Solicitud.class));
+    }
+
+    @Test
+    void crearSolicitud_deberiaPersistirEmergenciaNoNula() {
+        when(pacienteRepository.findByUsuarioId(1L)).thenReturn(Optional.of(paciente));
+        when(categoriaAyudaRepository.findById(1L)).thenReturn(Optional.of(categoria));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudRequest request = new SolicitudRequest();
+        request.setIdCategoria(1L);
+        request.setTitulo("Necesito ayuda");
+        request.setDescripcion("Me siento mal");
+        request.setEsUrgente(false);
+
+        service.crearSolicitud(1L, request);
+
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository).save(captor.capture());
+        assertThat(captor.getValue().getEmergencia()).isNotNull();
+        assertThat(captor.getValue().getEmergencia()).isFalse();
     }
 
     @Test
@@ -551,6 +572,72 @@ class SolicitudServiceTest {
         when(solicitudRepository.findById(99L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.derivarACentro(99L, 5L, 3L))
                 .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void derivarACentro_conReferente_deberiaLanzarAccesoDenegado() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico").build();
+        Secretario referente = Secretario.builder().id(1L).centroSalud(centro).build();
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(centroSaludRepository.findById(5L)).thenReturn(Optional.of(centro));
+        when(secretarioRepository.findByUsuarioId(3L)).thenReturn(Optional.of(referente));
+
+        assertThatThrownBy(() -> service.derivarACentro(1L, 5L, 3L))
+                .isInstanceOf(AccesoDenegadoException.class);
+    }
+
+    @Test
+    void cambiarCentro_conReferente_deberiaLanzarAccesoDenegado() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico").build();
+        when(secretarioRepository.findByUsuarioId(3L))
+                .thenReturn(Optional.of(Secretario.builder().id(1L).centroSalud(centro).build()));
+
+        assertThatThrownBy(() -> service.cambiarCentro(1L, 6L, 3L))
+                .isInstanceOf(AccesoDenegadoException.class);
+    }
+
+    @Test
+    void devolverACentral_referente_deberiaVolverACREADASinCentro() {
+        CentroSalud centro = CentroSalud.builder().id(5L).nombre("Hospital Publico").build();
+        Secretario referente = Secretario.builder().id(1L).centroSalud(centro).build();
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(centro);
+        solicitud.setFolio("NSL-2026-1");
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(solicitudRepository.save(any(Solicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(secretarioRepository.findByUsuarioId(3L)).thenReturn(Optional.of(referente));
+        when(usuarioRepository.findById(3L)).thenReturn(Optional.of(usuarioProfesional));
+        when(bitacoraRepository.save(any(BitacoraSolicitud.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SolicitudResponse response = service.devolverACentral(1L, 3L, "SECRETARIO");
+
+        assertThat(response.getEstado()).isEqualTo("CREADA");
+        assertThat(response.getNombreCentroSalud()).isNull();
+        ArgumentCaptor<Solicitud> captor = ArgumentCaptor.forClass(Solicitud.class);
+        verify(solicitudRepository, atLeastOnce()).save(captor.capture());
+        assertThat(captor.getValue().getCentroSalud()).isNull();
+        verify(bitacoraRepository).save(any(BitacoraSolicitud.class));
+    }
+
+    @Test
+    void devolverACentral_secretarioCentral_deberiaLanzarAccesoDenegado() {
+        solicitud.setEstado(EstadoSolicitud.RECIBIDA);
+        solicitud.setCentroSalud(CentroSalud.builder().id(5L).nombre("Hospital Publico").build());
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+        when(secretarioRepository.findByUsuarioId(3L)).thenReturn(Optional.of(Secretario.builder().id(1L).build()));
+
+        assertThatThrownBy(() -> service.devolverACentral(1L, 3L, "SECRETARIO"))
+                .isInstanceOf(AccesoDenegadoException.class);
+    }
+
+    @Test
+    void devolverACentral_conTurno_deberiaLanzar() {
+        solicitud.setEstado(EstadoSolicitud.ASIGNADA);
+        solicitud.setFechaTurno(LocalDateTime.now());
+        when(solicitudRepository.findById(1L)).thenReturn(Optional.of(solicitud));
+
+        assertThatThrownBy(() -> service.devolverACentral(1L, 3L, "SECRETARIO"))
+                .isInstanceOf(EstadoInvalidoException.class);
     }
 
     @Test
