@@ -1,12 +1,13 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 ARG REACT_APP_API_URL=/api
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
+ENV REACT_APP_API_URL=$REACT_APP_API_URL \
+    CI=false \
+    GENERATE_SOURCEMAP=false \
+    NODE_OPTIONS=--max-old-space-size=1536
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
-COPY tailwind.config.js ./
-COPY public ./public
-COPY src ./src
+COPY . .
 RUN npm run build
 
 FROM nginx:alpine
